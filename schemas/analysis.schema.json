@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "archlens/analysis.schema.json",
+  "title": "Archlens Architecture Analysis",
+  "description": "The analysis is the artifact. Diagrams and prose are both rendered from it, so a fact is written once and cannot disagree with itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "system", "components", "relations", "questions"],
+  "properties": {
+    "schema_version": { "const": 1 },
+
+    "system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "purpose"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1, "description": "One sentence. What the system is for, not how it works." },
+        "repository": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "revision"],
+          "properties": {
+            "url": { "type": "string", "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\\.git)?/?$" },
+            "revision": { "type": "string", "pattern": "^[a-fA-F0-9]{40}$" }
+          }
+        },
+        "sources": {
+          "type": "array",
+          "description": "What the analysis was read from. An analysis with no sources is an opinion.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": { "enum": ["code", "document", "conversation", "external"] },
+              "ref": { "type": "string", "minLength": 1 },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "layers": {
+      "type": "array",
+      "description": "Optional. Gives the compiler a rank order; without it rank is derived from the relation graph.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "order"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "label": { "type": "string", "minLength": 1 },
+          "order": { "type": "integer", "minimum": 0 },
+          "note": { "type": "string" }
+        }
+      }
+    },
+
+    "boundaries": {
+      "type": "array",
+      "description": "A boundary must make a claim. A box that only groups is decoration.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "label", "contains", "claim"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "kind": { "enum": ["trust", "process", "network", "deployment", "licence", "ownership"] },
+          "label": { "type": "string", "minLength": 1 },
+          "contains": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } },
+          "claim": { "type": "string", "minLength": 1, "description": "What is true of everything inside, and not outside." },
+          "evidence": { "$ref": "#/$defs/evidenceList" }
+        }
+      }
+    },
+
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "kind", "responsibility"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "kind": { "$ref": "#/$defs/componentKind" },
+          "responsibility": { "type": "string", "minLength": 1, "description": "One sentence, active voice. If it needs 'and', it may be two components." },
+          "detail": { "type": "string", "maxLength": 28, "description": "Optional short qualifier rendered under the name. Kept short because a diagram has no room." },
+          "layer": { "$ref": "#/$defs/id" },
+          "status": { "enum": ["built", "partial", "planned"], "default": "built" },
+          "evidence": { "$ref": "#/$defs/evidenceList" },
+          "doc_refs": { "$ref": "#/$defs/docRefList" },
+          "notes": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "mechanism", "summary"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "from": { "$ref": "#/$defs/id" },
+          "to": { "$ref": "#/$defs/id" },
+          "mechanism": { "$ref": "#/$defs/mechanism" },
+          "summary": { "type": "string", "minLength": 1, "maxLength": 34, "description": "The edge label. Short enough to survive a diagram." },
+          "what_crosses": { "type": "string", "description": "The data or control that actually moves. The most valuable field in the model and the one prose usually omits." },
+          "synchronous": { "type": "boolean" },
+          "status": { "enum": ["built", "partial", "planned"], "default": "built" },
+          "crosses": { "$ref": "#/$defs/id", "description": "Boundary id this relation crosses, if any." },
+          "evidence": { "$ref": "#/$defs/evidenceList" }
+        }
+      }
+    },
+
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One diagram per question. A diagram without a question is a picture of a codebase.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "ask", "involves"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "title": { "type": "string", "minLength": 1, "maxLength": 60 },
+          "ask": { "type": "string", "minLength": 1, "description": "The question in plain words, ending in a question mark." },
+          "answer": { "type": "string", "description": "The short answer. Becomes the diagram's lead card." },
+          "involves": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/id" } },
+          "highlight": { "type": "array", "items": { "$ref": "#/$defs/id" }, "description": "Components the answer turns on. Rendered with emphasis." },
+          "facts": { "type": "array", "items": { "$ref": "#/$defs/id" }, "description": "Fact ids to render as cards beside the diagram." },
+          "omits": { "type": "string", "description": "What this view deliberately leaves out, and why." }
+        }
+      }
+    },
+
+    "facts": {
+      "type": "array",
+      "description": "Claims that belong to the architecture rather than to any one component.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "claim"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "kind": { "enum": ["doctrine", "guarantee", "constraint", "tradeoff", "risk"] },
+          "claim": { "type": "string", "minLength": 1 },
+          "because": { "type": "string" },
+          "evidence": { "$ref": "#/$defs/evidenceList" }
+        }
+      }
+    },
+
+    "$defs": {}
+  },
+
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$" },
+
+    "componentKind": {
+      "description": "Richer than a renderer needs, on purpose. The compiler narrows it; the analysis keeps the distinction.",
+      "enum": [
+        "cli", "ui", "api", "service", "worker", "library", "engine",
+        "store", "file-store", "queue", "cache",
+        "sandbox", "gateway", "broker",
+        "model-provider", "external-service", "third-party",
+        "workflow", "schema", "config"
+      ]
+    },
+
+    "mechanism": {
+      "enum": [
+        "in-process call", "http", "https", "grpc", "stdio", "spawn",
+        "file", "database", "queue", "event", "signal", "manual"
+      ]
+    },
+
+    "evidenceList": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1, "maxLength": 240, "description": "Repository-relative path. Verified by the renderer when a repository revision is given." },
+          "line": { "type": "integer", "minimum": 1 },
+          "end_line": { "type": "integer", "minimum": 1 },
+          "label": { "type": "string", "minLength": 1, "maxLength": 48 }
+        }
+      }
+    },
+
+    "docRefList": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "section": { "type": "string" },
+          "quote": { "type": "string", "maxLength": 240 }
+        }
+      }
+    }
+  }
+}
