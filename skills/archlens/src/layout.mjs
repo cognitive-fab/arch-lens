@@ -19,10 +19,10 @@
 export const NODE_W = 150;
 export const NODE_H = 62;
 export const GAP_X = 170; // clear gap between columns, not centre distance
-export const GAP_Y = 78;
+export const GAP_Y = 64;
 export const MARGIN_X = 60;
-export const MARGIN_Y = 60;
-export const BAND_GAP = 96; // clear air between two boundary bands
+export const MARGIN_Y = 48;
+export const BAND_GAP = 60; // clear air between two boundary bands
 
 /**
  * Rank every component. A declared layer wins; otherwise the longest path from a
@@ -112,6 +112,62 @@ function normalise(rankOf) {
 }
 
 /**
+ * Trade height for width until the diagram is wider than it is tall.
+ *
+ * The renderer scales a diagram to fit the available WIDTH and lets the height
+ * follow, so a tall narrow picture is never shrunk — it just runs off the bottom
+ * of the viewport, and pulling the rows closer barely helps. What helps is
+ * fewer rows. A column taller than the budget is split into adjacent columns of
+ * the same rank, which is safe because no relation joins two nodes of one rank.
+ */
+function balance(columns, bandOf) {
+  const total = columns.reduce((n, col) => n + col.length, 0);
+  const tallest = Math.max(...columns.map((col) => col.length));
+
+  const split = (maxRows) => {
+    const out = [];
+    for (const col of columns) {
+      if (col.length <= maxRows) {
+        out.push([...col]);
+        continue;
+      }
+      for (let i = 0; i < col.length; i += maxRows) out.push(col.slice(i, i + maxRows));
+    }
+    return out;
+  };
+
+  const shape = (candidate) => {
+    const bands = new Map();
+    for (const col of candidate) {
+      const counts = new Map();
+      for (const id of col) counts.set(bandOf(id), (counts.get(bandOf(id)) ?? 0) + 1);
+      for (const [band, n] of counts) bands.set(band, Math.max(bands.get(band) ?? 0, n));
+    }
+    const rows = [...bands.values()].reduce((a, b) => a + b, 0);
+    const gaps = Math.max(0, bands.size - 1) * BAND_GAP;
+    return {
+      width: 2 * MARGIN_X + candidate.length * NODE_W + Math.max(0, candidate.length - 1) * GAP_X,
+      height: 2 * MARGIN_Y + rows * NODE_H + Math.max(0, rows - 1) * GAP_Y + gaps,
+    };
+  };
+
+  // The renderer fits a diagram to the available width and lets height follow,
+  // so the rendered height is height x (930 / width) whether that scales up or
+  // down. A narrow diagram is therefore stretched, not spared. Judge candidates
+  // on that projected height rather than on their own proportions.
+  const projected = ({ width, height }) => (height * 930) / width;
+
+  // Take the tallest shape that fits. Extra columns cost every node its detail
+  // text, so the flattest layout available is rarely the one you want.
+  for (let maxRows = tallest; maxRows >= 1; maxRows -= 1) {
+    const candidate = split(maxRows);
+    if (candidate.length > Math.max(4, total)) break;
+    if (projected(shape(candidate)) <= 520) return candidate;
+  }
+  return split(1);
+}
+
+/**
  * Order the nodes inside each column: barycentre sweeps to reduce crossings,
  * then a regrouping pass that makes each boundary's members contiguous.
  */
@@ -171,15 +227,17 @@ export function layout(components, relations, { layers, boundaryOf = new Map(), 
   // interleave vertically produce two overlapping boxes, and an overlapping box
   // says something about containment that the analysis never said.
   const bandOf = (id) => boundaryOf.get(id) ?? '~none';
-  const bands = [];
-  for (const c of components) {
-    const band = bandOf(c.id);
-    if (!bands.includes(band)) bands.push(band);
-  }
 
-  const columns = Array.from({ length: maxRank + 1 }, () => []);
+  let columns = Array.from({ length: maxRank + 1 }, () => []);
   for (const c of components) columns[rankOf.get(c.id)].push(c.id);
   orderColumns(columns, relations, boundaryOf);
+  columns = balance(columns, bandOf);
+
+  const bands = [];
+  for (const col of columns) for (const id of col) {
+    const band = bandOf(id);
+    if (!bands.includes(band)) bands.push(band);
+  }
 
   // How many rows each band needs is the most it occupies in any one column.
   const rowsIn = new Map(bands.map((b) => [b, 0]));

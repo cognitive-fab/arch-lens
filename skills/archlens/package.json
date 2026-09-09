@@ -1,0 +1,15 @@
+{
+  "name": "archlens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An architecture analysis model Claude authors, and a compiler that renders it through archify.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "archlens": "./bin/archlens.mjs"
+  },
+  "scripts": {}
+}

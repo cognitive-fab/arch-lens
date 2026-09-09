@@ -1,16 +1,16 @@
-# archlens
+# arch-lens
 
 **Write the architecture analysis. The diagrams compile from it.**
 
-Archlens is a small Node.js tool and a Claude Code skill. You — or Claude — write
-one structured analysis of a system. Archlens compiles it into a set of validated,
-interactive HTML diagrams and a markdown document that cannot disagree with them,
-and never asks anyone to type a coordinate.
+A Claude Code plugin, and a small Node.js tool underneath it. You — or Claude —
+write one structured analysis of a system. Arch-lens compiles it into a set of
+validated, interactive HTML diagrams and a markdown document that cannot disagree
+with them, and never asks anyone to type a coordinate.
 
 It does not draw. Rendering is [archify](https://github.com/tt-a1i/archify)'s job,
 and archify is very good at it: deterministic HTML, a validator that refuses
 overlapping labels and crossing routes, verified source links, and a real browser
-check. Archlens supplies the thing archify has no opinion about — what the boxes
+check. Arch-lens supplies the thing archify has no opinion about — what the boxes
 mean and why this diagram exists.
 
 ## Why
@@ -37,42 +37,47 @@ So the analysis is the artifact:
 
 ## Install
 
-Needs Node 22+ and archify installed as a skill:
+Needs Node 22+ and the archify renderer:
 
-```sh
-npx skills add tt-a1i/archify -g          # if you do not have it
-git clone <this repo> ~/code/archlens
-node ~/code/archlens/scripts/install-skill.mjs
+```
+npx skills add tt-a1i/archify -g
 ```
 
-The install script assembles a self-contained skill folder — `SKILL.md` plus the
-runtime it tells the agent to run — into every agent directory it finds (Claude
-Code, Cursor, Codex, OpenCode), or into one path you pass explicitly. Copying
-`SKILL.md` on its own gives you a skill that reads perfectly and cannot execute a
-single instruction in it.
+Then, in Claude Code:
+
+```
+/plugin marketplace add cognitive-fab/arch-lens
+/plugin install archlens@arch-lens
+```
+
+Or install it as a plain skill, which works for Claude Code, Cursor, Codex and
+OpenCode alike:
+
+```sh
+git clone https://github.com/cognitive-fab/arch-lens
+node arch-lens/scripts/install-skill.mjs
+```
 
 Verify with `node ~/.claude/skills/archlens/bin/archlens.mjs doctor`, which reports
 where archify was found. Override the probe with `ARCHLENS_ARCHIFY` if you keep it
 somewhere unusual.
 
-**This is not a marketplace plugin.** It installs as a personal skill, from a
-local clone. There is no published repository and nothing to `/plugin install`.
-
 ## Documentation
 
-- **[docs/GUIDE.md](docs/GUIDE.md)** — the walkthrough: build an analysis piece by
-  piece, run it, read the output, and a full field reference.
-- **[examples/notes-app.analysis.json](examples/notes-app.analysis.json)** — a
-  small worked example (six components, two questions) to copy from.
-- **[examples/polygents.analysis.json](examples/polygents.analysis.json)** — a
-  real one, with layers, two boundaries and verified source links.
-- **[schemas/analysis.schema.json](schemas/analysis.schema.json)** — every field,
-  with the reasoning in its descriptions.
-- **[skills/archlens/SKILL.md](skills/archlens/SKILL.md)** — what Claude reads.
+- **[GUIDE.md](skills/archlens/docs/GUIDE.md)** — the walkthrough: build an
+  analysis piece by piece, run it, read the output, and a full field reference.
+- **[notes-app.analysis.json](skills/archlens/examples/notes-app.analysis.json)** —
+  a small invented example, six components and two questions, to copy from.
+- **[litestream.analysis.json](skills/archlens/examples/litestream.analysis.json)** —
+  a real one: [Litestream](https://github.com/benbjohnson/litestream) analysed at
+  a pinned commit, with source links verified against git.
+- **[analysis.schema.json](skills/archlens/schemas/analysis.schema.json)** — every
+  field, with the reasoning in its descriptions.
+- **[SKILL.md](skills/archlens/SKILL.md)** — what Claude reads.
 
 ## Use
 
-Ask Claude, in any project: *"map this architecture with archlens"*. Or drive it
+Ask Claude, in any project: *"map this architecture with arch-lens"*. Or drive it
 directly:
 
 ```sh
@@ -86,6 +91,33 @@ archlens doc       system.analysis.json ARCHITECTURE.md
 diagnostics until it passes, delivers the HTML, checks it in headless Chrome, and
 writes a markdown document beside the diagrams.
 
+## The worked example
+
+`skills/archlens/examples/litestream.analysis.json` analyses
+[Litestream](https://github.com/benbjohnson/litestream), a disaster-recovery
+sidecar for SQLite, at commit `4ed7a30`. Thirteen components, two boundaries, four
+questions:
+
+| Question | Asks |
+|---|---|
+| How a change reaches the destination | What happens between a committed transaction and an object in storage? |
+| Why replicating cannot corrupt the database | A background process is touching a live database. Why is that safe? |
+| How a database is rebuilt | The machine is gone. What does it take to get the database back? |
+| Keeping it running and keeping it small | What stops the history growing forever, or two processes fighting over one bucket? |
+
+Litestream was chosen because its architecture is mostly an argument about what
+crosses a boundary, which is the part a diagram usually loses. To reproduce it,
+clone Litestream anywhere and point the renderer at it:
+
+```sh
+git clone https://github.com/benbjohnson/litestream /tmp/litestream
+archlens render skills/archlens/examples/litestream.analysis.json /tmp/out \
+  --repo-root /tmp/litestream
+```
+
+All four diagrams pass nine artifact checks with zero errors, contain at four
+viewports in light and dark, and carry source links verified against git.
+
 ## What it does for you
 
 **Layout.** Columns come from the relation graph, rows from the boundaries. Each
@@ -95,10 +127,11 @@ two overlapping boxes, and an overlapping box asserts a containment nobody wrote
 Relations are never left inside one column, and an edge that skips a column gets
 its own routing lane with a staggered exit port.
 
-**Width.** archify scales a diagram to fit a desktop and then rejects node text
-that lands below six pixels, so a wide diagram silently costs every node its
-detail line. Archlens picks the column gap that the text survives at, before
-writing any of it.
+**Proportion.** archify fits a diagram to the available width and lets the height
+follow, so a tall narrow picture is stretched rather than spared and runs off the
+bottom of the screen. Arch-lens trades height for width until the projection fits,
+then picks the column gap at which node text still clears the readable floor —
+before writing any of that text.
 
 **Repair.** archify's diagnostics are unusually good — a label collision arrives
 with the exact `labelAt` that resolves it — so a loop reads them and edits:
@@ -111,28 +144,30 @@ error count stops reaching a new minimum, and reports whatever it could not fix.
 members, a detail shortened. Source links are emitted only when there is a
 repository revision to verify them against.
 
-## Layout
+## Layout of this repository
 
 ```
-schemas/analysis.schema.json   the model, with the reasoning in its descriptions
-src/model.mjs                  referential validation and the thin-analysis warnings
-src/layout.mjs                 ranks, bands, lanes, ports, the text budget
-src/compile.mjs                one question -> one archify specification
-src/repair.mjs                 the diagnostic-driven repair loop
-src/markdown.mjs               the same analysis, as prose
-src/archify.mjs                where archify is, and how to run it
-skills/archlens/SKILL.md       how Claude is meant to use all of it
-scripts/install-skill.mjs      assembles the self-contained skill folder
-docs/GUIDE.md                  the walkthrough and field reference
-examples/notes-app.analysis.json   a small worked example
-examples/polygents.analysis.json   a real one, with verified source links
+.claude-plugin/                marketplace and plugin manifests
+skills/archlens/               the plugin's skill, self-contained
+  SKILL.md                     how Claude is meant to use all of it
+  bin/archlens.mjs             the CLI
+  src/model.mjs                referential validation and the thin-analysis warnings
+  src/layout.mjs               ranks, bands, lanes, ports, and the text budget
+  src/compile.mjs              one question -> one archify specification
+  src/repair.mjs               the diagnostic-driven repair loop
+  src/markdown.mjs             the same analysis, as prose
+  src/archify.mjs              where archify is, and how to run it
+  schemas/analysis.schema.json the model
+  docs/GUIDE.md                the walkthrough and field reference
+  examples/                    one invented, one real
+scripts/install-skill.mjs      installs the skill folder into each agent
+test/                          twenty tests over what can be wrong quietly
 ```
 
 ## Status
 
-v0.1, and honest about it. It has been run end to end on one real system
-(`examples/`), producing four diagrams that each pass nine artifact checks with
-zero errors and browser containment at four viewports. The repair loop handles
-six diagnostic classes; anything else it reports and leaves alone.
+v0.1, and honest about it. Run end to end on two systems. The repair loop handles
+six classes of renderer diagnostic and reports anything else rather than guessing.
+`archify` is MIT, and this is a consumer of it, not a fork.
 
-`archify` is MIT. This is a consumer of it, not a fork.
+MIT licensed.

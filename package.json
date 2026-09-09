@@ -1,13 +1,20 @@
 {
-  "name": "archlens",
+  "name": "arch-lens",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "An architecture analysis model Claude authors, and a compiler that renders it through archify.",
+  "description": "Write the architecture analysis; the diagrams compile from it.",
   "license": "MIT",
-  "engines": { "node": ">=22" },
-  "bin": { "archlens": "./bin/archlens.mjs" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "test": "node --test \"test/**/*.test.mjs\""
-  }
+    "test": "node --test \"test/*.test.mjs\"",
+    "install-skill": "node scripts/install-skill.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cognitive-fab/arch-lens.git"
+  },
+  "homepage": "https://github.com/cognitive-fab/arch-lens"
 }

@@ -13,13 +13,13 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { validateAnalysis, index } from '../src/model.mjs';
-import { compileQuestion } from '../src/compile.mjs';
-import { rank, layout, detailBudget } from '../src/layout.mjs';
-import { renderMarkdown } from '../src/markdown.mjs';
+import { validateAnalysis, index } from '../skills/archlens/src/model.mjs';
+import { compileQuestion } from '../skills/archlens/src/compile.mjs';
+import { rank, layout, detailBudget } from '../skills/archlens/src/layout.mjs';
+import { renderMarkdown } from '../skills/archlens/src/markdown.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const example = JSON.parse(readFileSync(join(here, '..', 'examples', 'polygents.analysis.json'), 'utf8'));
+const example = JSON.parse(readFileSync(join(here, '..', 'skills', 'archlens', 'examples', 'litestream.analysis.json'), 'utf8'));
 
 const minimal = () => ({
   schema_version: 1,
@@ -87,14 +87,14 @@ test('a self-loop is an error, because the renderer cannot draw one', () => {
 // --- the compiler ---------------------------------------------------------
 
 test('a question draws only what it involves', () => {
-  const { spec } = compileQuestion(example, 'boundary');
+  const { spec } = compileQuestion(example, 'safety');
   const drawn = new Set(spec.components.map((c) => c.id));
-  const question = example.questions.find((q) => q.id === 'boundary');
+  const question = example.questions.find((q) => q.id === 'safety');
   assert.deepEqual([...drawn].sort(), [...question.involves].sort());
 });
 
 test('components left out of a question are named on the card, never silently dropped', () => {
-  const { spec, dropped } = compileQuestion(example, 'boundary');
+  const { spec, dropped } = compileQuestion(example, 'safety');
   const cards = JSON.stringify(spec.cards);
   assert.match(cards, /Connected but out of scope/);
   assert.ok(dropped.some((d) => /out of scope/.test(d)));
@@ -103,19 +103,19 @@ test('components left out of a question are named on the card, never silently dr
 test('source links are omitted entirely when there is no repository to verify them against', () => {
   const doc = structuredClone(example);
   delete doc.system.repository;
-  const { spec } = compileQuestion(doc, 'evidence');
+  const { spec } = compileQuestion(doc, 'write');
   assert.ok(spec.components.every((c) => c.sources === undefined));
 });
 
 test('source links survive when a repository is declared', () => {
-  const { spec } = compileQuestion(example, 'evidence');
+  const { spec } = compileQuestion(example, 'write');
   assert.ok(spec.components.some((c) => Array.isArray(c.sources) && c.sources.length > 0));
 });
 
-test('a planned component is tagged so a reader can tell design from code', () => {
-  const { spec } = compileQuestion(example, 'boundary');
-  const oracle = spec.components.find((c) => c.id === 'oracle');
-  assert.equal(oracle.tag, 'planned');
+test('a component that is not fully built is tagged, so a reader can tell design from code', () => {
+  const { spec } = compileQuestion(example, 'restore');
+  const vfs = spec.components.find((c) => c.id === 'vfs');
+  assert.equal(vfs.tag, 'partial');
 });
 
 test('a boundary with one member in view is dropped, and says so', () => {
@@ -163,7 +163,7 @@ test('no relation joins two nodes in the same column', () => {
 
 test('boundary members occupy bands that do not overlap', () => {
   const idx = index(example);
-  const question = example.questions.find((q) => q.id === 'boundary');
+  const question = example.questions.find((q) => q.id === 'safety');
   const components = question.involves.map((id) => idx.components.get(id));
   const relations = example.relations.filter((r) => question.involves.includes(r.from) && question.involves.includes(r.to));
   const placed = layout(components, relations, { layers: example.layers, boundaryOf: idx.boundaryOf });
@@ -190,12 +190,12 @@ test('the text budget shrinks as the diagram widens', () => {
 
 test('the markdown carries what the diagram cannot', () => {
   const markdown = renderMarkdown(example);
-  assert.match(markdown, /Solution values, a world version and the account key/);
+  assert.match(markdown, /never a connection to your database/);
   assert.match(markdown, /## What moves between them/);
   for (const c of example.components) assert.ok(markdown.includes(c.name), `${c.name} missing from the document`);
 });
 
-test('planned components are marked in the document', () => {
+test('a partially built component is marked in the document', () => {
   const markdown = renderMarkdown(example);
-  assert.match(markdown, /\*\(planned\)\*/);
+  assert.match(markdown, /\*\(partial\)\*/);
 });

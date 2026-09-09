@@ -1,0 +1,12 @@
+{
+  "name": "archlens",
+  "version": "0.1.0",
+  "description": "Write the architecture analysis; the diagrams compile from it. Requires the archify renderer.",
+  "author": {
+    "name": "Cognitive Fab"
+  },
+  "homepage": "https://github.com/cognitive-fab/arch-lens",
+  "repository": "https://github.com/cognitive-fab/arch-lens",
+  "license": "MIT",
+  "keywords": ["architecture", "diagrams", "documentation"]
+}

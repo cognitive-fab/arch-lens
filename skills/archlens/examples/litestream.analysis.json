@@ -1,0 +1,488 @@
+{
+  "schema_version": 1,
+  "system": {
+    "name": "Litestream",
+    "purpose": "A disaster-recovery sidecar for SQLite: it replicates a database to object storage continuously, without ever writing the database file itself.",
+    "repository": {
+      "url": "https://github.com/benbjohnson/litestream",
+      "revision": "4ed7a308f6271ebfd2b0a6e4b70b03011a37e4a3"
+    },
+    "sources": [
+      {
+        "kind": "code",
+        "ref": "db.go, replica.go, store.go, compactor.go, server.go, vfs.go, cmd/litestream/",
+        "note": "read at 4ed7a30"
+      },
+      {
+        "kind": "document",
+        "ref": "README.md",
+        "note": "the SQLite API claim and the _litestream_lock behaviour"
+      }
+    ]
+  },
+  "boundaries": [
+    {
+      "id": "sqlite",
+      "kind": "process",
+      "label": "Owned by SQLite",
+      "claim": "Litestream reaches all of this only through the SQLite API, which is why replicating cannot corrupt it",
+      "contains": [
+        "dbfile",
+        "wal",
+        "locktable"
+      ],
+      "evidence": [
+        {
+          "path": "README.md",
+          "label": "only communicates through the SQLite API"
+        }
+      ]
+    },
+    {
+      "id": "daemon",
+      "kind": "process",
+      "label": "The Litestream process",
+      "claim": "A sidecar: stop all of it and SQLite keeps serving reads and writes",
+      "contains": [
+        "store",
+        "db",
+        "replica",
+        "compactor",
+        "leaser",
+        "server"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "cli",
+      "name": "litestream CLI",
+      "kind": "cli",
+      "detail": "replicate, restore",
+      "responsibility": "Parses the command and either starts the long-running replication process or performs a one-shot restore.",
+      "evidence": [
+        {
+          "path": "cmd/litestream/main.go"
+        },
+        {
+          "path": "cmd/litestream/restore.go"
+        }
+      ]
+    },
+    {
+      "id": "server",
+      "name": "Control socket",
+      "kind": "api",
+      "detail": "HTTP over a Unix socket",
+      "responsibility": "Lets a running process be changed without restarting it, over a Unix socket.",
+      "evidence": [
+        {
+          "path": "server.go"
+        }
+      ]
+    },
+    {
+      "id": "store",
+      "name": "Store",
+      "kind": "service",
+      "detail": "every registered database",
+      "responsibility": "Holds every registered database and schedules background work so the host is not overloaded by concurrent compactions.",
+      "evidence": [
+        {
+          "path": "store.go"
+        }
+      ]
+    },
+    {
+      "id": "db",
+      "name": "DB",
+      "kind": "service",
+      "detail": "one database, watched",
+      "responsibility": "Manages one SQLite database: watches the log, decides when to checkpoint, and turns committed pages into transaction files.",
+      "evidence": [
+        {
+          "path": "db.go"
+        },
+        {
+          "path": "wal_reader.go"
+        }
+      ]
+    },
+    {
+      "id": "replica",
+      "name": "Replica",
+      "kind": "worker",
+      "detail": "syncs on an interval",
+      "responsibility": "Syncs one database's transaction files to one destination and tracks how far the destination has caught up.",
+      "evidence": [
+        {
+          "path": "replica.go"
+        }
+      ]
+    },
+    {
+      "id": "compactor",
+      "name": "Compactor",
+      "kind": "worker",
+      "detail": "merges levels, expires",
+      "responsibility": "Merges transaction files into higher levels and deletes what the retention policy no longer needs.",
+      "evidence": [
+        {
+          "path": "compactor.go"
+        },
+        {
+          "path": "compaction_level.go"
+        }
+      ]
+    },
+    {
+      "id": "leaser",
+      "name": "Leaser",
+      "kind": "broker",
+      "detail": "one writer at a time",
+      "responsibility": "Holds and renews a lease so two processes never replicate to the same destination at once.",
+      "evidence": [
+        {
+          "path": "leaser.go"
+        },
+        {
+          "path": "heartbeat.go"
+        }
+      ]
+    },
+    {
+      "id": "client",
+      "name": "Replica client",
+      "kind": "gateway",
+      "detail": "S3, GCS, Azure, SFTP",
+      "responsibility": "Speaks whichever destination protocol was configured, behind one interface the rest of the system uses.",
+      "evidence": [
+        {
+          "path": "replica_client.go"
+        },
+        {
+          "path": "s3/replica_client.go"
+        }
+      ]
+    },
+    {
+      "id": "storage",
+      "name": "Destination",
+      "kind": "external-service",
+      "detail": "the only off-host copy",
+      "responsibility": "Stores transaction files and snapshots as plain objects.",
+      "evidence": [
+        {
+          "path": "replica_url.go"
+        }
+      ]
+    },
+    {
+      "id": "dbfile",
+      "name": "SQLite database",
+      "kind": "store",
+      "detail": "your application's data",
+      "responsibility": "Holds the data your application reads and writes.",
+      "evidence": [
+        {
+          "path": "db.go"
+        }
+      ]
+    },
+    {
+      "id": "wal",
+      "name": "Write-ahead log",
+      "kind": "file-store",
+      "detail": "committed pages only",
+      "responsibility": "Records the pages SQLite has committed, and is the only place Litestream learns what changed.",
+      "evidence": [
+        {
+          "path": "wal_reader.go"
+        }
+      ]
+    },
+    {
+      "id": "locktable",
+      "name": "_litestream_lock",
+      "kind": "schema",
+      "detail": "a table in your database",
+      "responsibility": "Gives Litestream somewhere to take SQLite's write lock while it coordinates around a checkpoint.",
+      "evidence": [
+        {
+          "path": "README.md",
+          "label": "Source database changes"
+        }
+      ]
+    },
+    {
+      "id": "vfs",
+      "name": "Read-replica VFS",
+      "kind": "library",
+      "status": "partial",
+      "detail": "built with the vfs tag",
+      "responsibility": "Serves reads straight from the destination with no local copy of the database.",
+      "evidence": [
+        {
+          "path": "vfs.go"
+        }
+      ],
+      "notes": [
+        "Behind a build tag, so it is in the tree but not in a default build."
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "from": "cli",
+      "to": "store",
+      "mechanism": "in-process call",
+      "summary": "register and replicate",
+      "what_crosses": "The configured database paths and their destinations."
+    },
+    {
+      "from": "cli",
+      "to": "server",
+      "mechanism": "http",
+      "summary": "start, stop, status",
+      "what_crosses": "A control request over a Unix socket, which never leaves the machine."
+    },
+    {
+      "from": "server",
+      "to": "store",
+      "mechanism": "in-process call",
+      "summary": "apply the change",
+      "what_crosses": "A request to register, enable or stop one database."
+    },
+    {
+      "from": "store",
+      "to": "db",
+      "mechanism": "in-process call",
+      "summary": "monitor each database",
+      "what_crosses": "A monitor tick; the database does the deciding."
+    },
+    {
+      "from": "store",
+      "to": "compactor",
+      "mechanism": "in-process call",
+      "summary": "schedule compaction",
+      "what_crosses": "A level to compact, rate-limited so the host is not overloaded."
+    },
+    {
+      "from": "db",
+      "to": "wal",
+      "mechanism": "file",
+      "summary": "read committed pages",
+      "what_crosses": "Page frames SQLite has already committed. Litestream never writes here.",
+      "crosses": "sqlite"
+    },
+    {
+      "from": "db",
+      "to": "dbfile",
+      "mechanism": "database",
+      "summary": "checkpoint",
+      "what_crosses": "Checkpoint and page-size calls through SQLite's own API, never a direct write to the file.",
+      "crosses": "sqlite"
+    },
+    {
+      "from": "db",
+      "to": "locktable",
+      "mechanism": "database",
+      "summary": "hold the write lock",
+      "what_crosses": "A transaction that is always rolled back, so no row is left behind.",
+      "crosses": "sqlite"
+    },
+    {
+      "from": "db",
+      "to": "replica",
+      "mechanism": "in-process call",
+      "summary": "hand over transactions",
+      "what_crosses": "Encoded page frames for one transaction range, never the whole database."
+    },
+    {
+      "from": "replica",
+      "to": "client",
+      "mechanism": "in-process call",
+      "summary": "write and list",
+      "what_crosses": "Transaction files, plus the position the destination has reached."
+    },
+    {
+      "from": "compactor",
+      "to": "client",
+      "mechanism": "in-process call",
+      "summary": "merge and expire",
+      "what_crosses": "Files read back, rewritten fewer and larger, and the deletions retention allows."
+    },
+    {
+      "from": "leaser",
+      "to": "client",
+      "mechanism": "in-process call",
+      "summary": "claim and renew",
+      "what_crosses": "A lease object, so a second process finds the destination taken."
+    },
+    {
+      "from": "vfs",
+      "to": "client",
+      "mechanism": "in-process call",
+      "summary": "read pages on demand",
+      "status": "partial",
+      "what_crosses": "A page request answered from the destination rather than a local file."
+    },
+    {
+      "from": "client",
+      "to": "storage",
+      "mechanism": "https",
+      "summary": "put, get, list",
+      "what_crosses": "Transaction files and snapshots. Never a SQL statement, and never a connection to your database."
+    },
+    {
+      "from": "cli",
+      "to": "client",
+      "mechanism": "in-process call",
+      "summary": "fetch to restore",
+      "what_crosses": "A snapshot and the contiguous transaction files recorded after it."
+    },
+    {
+      "from": "cli",
+      "to": "dbfile",
+      "mechanism": "file",
+      "summary": "write the rebuilt copy",
+      "what_crosses": "A newly built database file, written to a path that must not already exist."
+    }
+  ],
+  "facts": [
+    {
+      "id": "sqlite-api",
+      "kind": "guarantee",
+      "claim": "Litestream never writes your database or its log",
+      "because": "it reaches both only through SQLite's own API, so an interrupted replication cannot leave either in a state SQLite did not create",
+      "evidence": [
+        {
+          "path": "README.md"
+        }
+      ]
+    },
+    {
+      "id": "not-in-write-path",
+      "kind": "doctrine",
+      "claim": "Replication is never in the path of a write",
+      "because": "a write returns as soon as SQLite commits, so a slow or unreachable destination costs recovery, never availability"
+    },
+    {
+      "id": "lock-table",
+      "kind": "constraint",
+      "claim": "Replicating adds a table to your database",
+      "because": "the write lock has to be held somewhere while a checkpoint is coordinated, and a restored copy therefore contains that table too"
+    },
+    {
+      "id": "single-writer",
+      "kind": "constraint",
+      "claim": "One process per destination",
+      "because": "a lease stops two processes interleaving transaction files into the same place"
+    },
+    {
+      "id": "levels-not-rewrites",
+      "kind": "doctrine",
+      "claim": "Files are compacted into levels, never rewritten in place",
+      "because": "a restore replays a snapshot plus a contiguous range, so merging can shrink the history without being able to lose a transaction"
+    },
+    {
+      "id": "recovery-not-availability",
+      "kind": "tradeoff",
+      "claim": "Losing the destination costs recovery, not uptime",
+      "because": "the database keeps serving; what is gone is the ability to rebuild it elsewhere"
+    }
+  ],
+  "questions": [
+    {
+      "id": "write",
+      "title": "How a change reaches the destination",
+      "ask": "What happens between a committed transaction and an object in storage?",
+      "answer": "Litestream reads the pages SQLite already committed, packs them into transaction files, and a replica pushes them on an interval. The commit never waits for any of it.",
+      "involves": [
+        "dbfile",
+        "wal",
+        "db",
+        "replica",
+        "client",
+        "storage"
+      ],
+      "highlight": [
+        "db",
+        "replica"
+      ],
+      "facts": [
+        "not-in-write-path",
+        "sqlite-api"
+      ],
+      "omits": "Restore, compaction, and the control socket. Each is its own question."
+    },
+    {
+      "id": "safety",
+      "title": "Why replicating cannot corrupt the database",
+      "ask": "A background process is touching a live database. Why is that safe?",
+      "answer": "Because it is not touching it. Every read and every checkpoint goes through SQLite's own API, and the write lock is taken in a table inside the database using a transaction that is always rolled back.",
+      "involves": [
+        "dbfile",
+        "wal",
+        "locktable",
+        "db",
+        "replica"
+      ],
+      "highlight": [
+        "dbfile",
+        "locktable"
+      ],
+      "facts": [
+        "sqlite-api",
+        "lock-table"
+      ],
+      "omits": "Everything past the replica; nothing downstream can reach back into the database."
+    },
+    {
+      "id": "restore",
+      "title": "How a database is rebuilt",
+      "ask": "The machine is gone. What does it take to get the database back?",
+      "answer": "A snapshot and the contiguous transaction files recorded after it, replayed into a new file. Nothing from the lost machine is required, and the rebuilt copy carries the lock table with it.",
+      "involves": [
+        "cli",
+        "client",
+        "storage",
+        "dbfile",
+        "vfs"
+      ],
+      "highlight": [
+        "client",
+        "dbfile"
+      ],
+      "facts": [
+        "levels-not-rewrites",
+        "recovery-not-availability"
+      ],
+      "omits": "The live replication path, which is not running during a restore."
+    },
+    {
+      "id": "operations",
+      "title": "Keeping it running and keeping it small",
+      "ask": "What stops the history growing forever, or two processes fighting over one bucket?",
+      "answer": "A compactor merges transaction files into higher levels and expires what retention drops. A lease means only one process writes to a destination at a time.",
+      "involves": [
+        "cli",
+        "server",
+        "store",
+        "compactor",
+        "leaser",
+        "client",
+        "storage"
+      ],
+      "highlight": [
+        "compactor",
+        "leaser"
+      ],
+      "facts": [
+        "levels-not-rewrites",
+        "single-writer"
+      ],
+      "omits": "How a transaction file is produced in the first place."
+    }
+  ]
+}

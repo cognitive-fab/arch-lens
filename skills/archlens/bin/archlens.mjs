@@ -164,15 +164,20 @@ function cmdRender() {
     }
 
     if (!has('no-check')) {
+      // Vertical containment is only knowable in a browser, so it is measured
+      // after delivery and fixed by pulling the rows together. One pass is not
+      // always enough — a tall diagram can need three — and each attempt has to
+      // re-run the repair loop, because moving rows can re-open a label
+      // collision that was already settled.
       let check = visualCheck(htmlPath);
-      if (!check.ok) {
-        say('  browser  overflowed; compacting and re-delivering once');
-        compactVertically(target.spec);
+      for (let attempt = 1; attempt <= 3 && !check.ok; attempt += 1) {
+        say(`  browser  overflows; pulling the rows together (attempt ${attempt} of 3)`);
+        compactVertically(target.spec, 0.8);
         const again = repair(target.spec, specPath, { repoRoot });
-        if (again.ok) {
-          const redelivered = deliver(specPath, htmlPath, { repoRoot: repoRoot ?? undefined });
-          if (redelivered.ok) check = visualCheck(htmlPath);
-        }
+        if (!again.ok) break;
+        const redelivered = deliver(specPath, htmlPath, { repoRoot: repoRoot ?? undefined });
+        if (!redelivered.ok) break;
+        check = visualCheck(htmlPath);
       }
       say(`  browser  ${check.ok ? 'contained at every checked viewport' : 'STILL OVERFLOWING — open it and look'}`);
       if (!check.ok) failures += 1;

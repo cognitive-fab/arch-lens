@@ -146,20 +146,28 @@ export function compileQuestion(analysis, questionId, options = {}) {
     });
   }
 
+  // Which boundaries will actually be drawn has to be settled BEFORE layout.
+  // A boundary that gets dropped for having one member in view must not still
+  // push that member into a band of its own: that reserves a whole row band for
+  // a box nobody will see, and drags every edge to it across the picture.
+  const boundaries = boundariesFor(analysis, inScope, dropped);
+  const drawnBoundaryOf = new Map();
+  for (const b of boundaries) for (const id of b.wraps) drawnBoundaryOf.set(id, b.label);
+
   // Choose a width the node text can survive at, before writing any of it.
   //
   // The renderer scales the whole diagram to fit a desktop and then rejects text
   // that lands below six pixels, so a wide diagram silently costs every node its
   // detail line. Pulling the columns together buys those characters back, and it
   // is a far better trade than truncating six labels into fragments.
-  let placed = layout(nodes, relations, { layers: analysis.layers, boundaryOf: idx.boundaryOf });
+  let placed = layout(nodes, relations, { layers: analysis.layers, boundaryOf: drawnBoundaryOf });
   let budget = detailBudget(placed.width);
   const wanted = (c) => (c.detail ?? c.responsibility ?? '').length;
   const overBudget = () => nodes.filter((c) => wanted(c) > budget).length;
 
   for (const gapX of [140, 115, 95]) {
     if (overBudget() <= 1) break;
-    const tighter = layout(nodes, relations, { layers: analysis.layers, boundaryOf: idx.boundaryOf, gapX });
+    const tighter = layout(nodes, relations, { layers: analysis.layers, boundaryOf: drawnBoundaryOf, gapX });
     const tighterBudget = detailBudget(tighter.width);
     if (tighterBudget <= budget) break;
     placed = tighter;
@@ -198,7 +206,6 @@ export function compileQuestion(analysis, questionId, options = {}) {
     return spec;
   });
 
-  const boundaries = boundariesFor(analysis, inScope, dropped);
   const cards = cardsFor(question, analysis, idx, omitted);
   const views = viewsFor(question, analysis, inScope);
 

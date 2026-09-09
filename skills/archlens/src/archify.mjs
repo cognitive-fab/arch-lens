@@ -2,8 +2,9 @@
 //
 // archify is a dependency, not a fork. It ships no package export surface worth
 // binding, so it is found by a directory probe and driven by its own CLI in JSON
-// mode — the same shape polygents uses to find its engines, deliberately, so
-// that someone who has read one has read both.
+// mode. The probe checks for a marker file rather than a directory name, because
+// a folder called `archify` containing something else is the failure that
+// actually happens.
 //
 // An explicit override is used or it throws. Falling back from a bad override
 // would quietly render with a different archify than the one the caller named.

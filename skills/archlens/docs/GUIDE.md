@@ -1,7 +1,7 @@
 # Using archlens
 
 A walkthrough, then a field reference. Everything here runs against
-`examples/notes-app.analysis.json`, which is a small system invented for this
+`examples/notes-app.analysis.json`, a small system invented for this
 guide: a notes service with a browser app, an API, Postgres, a background indexer
 and a search index.
 

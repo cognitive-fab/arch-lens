@@ -17,8 +17,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** What the skill needs at runtime. SKILL.md is copied last, from skills/. */
-const PAYLOAD = ['bin', 'src', 'schemas', 'examples', 'docs', 'package.json', 'README.md'];
+/** The skill folder is already self-contained; installing is a copy of it. */
+const SOURCE = join(root, 'skills', 'archlens');
 
 /** Agent skill directories, by the folder that proves the agent is installed. */
 const TARGETS = [
@@ -44,12 +44,7 @@ for (const target of targets) {
   if (existsSync(target.dir)) rmSync(target.dir, { recursive: true, force: true });
   mkdirSync(target.dir, { recursive: true });
 
-  for (const entry of PAYLOAD) {
-    const from = join(root, entry);
-    if (!existsSync(from)) continue;
-    cpSync(from, join(target.dir, entry), { recursive: true });
-  }
-  cpSync(join(root, 'skills', 'archlens', 'SKILL.md'), join(target.dir, 'SKILL.md'));
+  cpSync(SOURCE, target.dir, { recursive: true });
 
   const installed = readdirSync(target.dir).sort().join(', ');
   process.stdout.write(`${target.agent}\n  ${target.dir}\n  ${installed}\n`);

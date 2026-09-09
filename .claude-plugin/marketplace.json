@@ -1,0 +1,26 @@
+{
+  "name": "arch-lens",
+  "owner": {
+    "name": "Cognitive Fab"
+  },
+  "metadata": {
+    "description": "Architecture analysis for coding agents: write the analysis, compile the diagrams from it",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "archlens",
+      "description": "Turn a codebase or an architecture document into a structured, evidence-carrying analysis, then compile that analysis into validated interactive diagrams and a matching markdown document. One diagram per question, source links verified against git, and everything the picture had to drop reported rather than hidden. Requires the archify renderer.",
+      "version": "0.1.0",
+      "source": "./",
+      "category": "documentation",
+      "author": {
+        "name": "Cognitive Fab"
+      },
+      "homepage": "https://github.com/cognitive-fab/arch-lens",
+      "repository": "https://github.com/cognitive-fab/arch-lens",
+      "license": "MIT",
+      "keywords": ["architecture", "diagrams", "documentation", "analysis", "c4", "system-design"]
+    }
+  ]
+}
