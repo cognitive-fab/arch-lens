@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "system": {
+    "name": "Notes",
+    "purpose": "A small notes service: people write notes in a browser, and search finds them again.",
+    "sources": [
+      { "kind": "code", "ref": "web/, api/, worker/", "note": "a worked example for the archlens guide, not a real repository" }
+    ]
+  },
+
+  "boundaries": [
+    {
+      "id": "ours",
+      "kind": "trust",
+      "label": "Our infrastructure",
+      "claim": "Runs code we deploy; anything outside it we can only call, not change",
+      "contains": ["api", "db", "indexer", "search"]
+    }
+  ],
+
+  "components": [
+    {
+      "id": "web",
+      "name": "Web app",
+      "kind": "ui",
+      "detail": "React, in the browser",
+      "responsibility": "Lets a person write, edit and search notes.",
+      "evidence": [{ "path": "web/src/App.tsx" }]
+    },
+    {
+      "id": "api",
+      "name": "API",
+      "kind": "api",
+      "detail": "REST over HTTPS",
+      "responsibility": "Authenticates the caller and is the only writer of note records.",
+      "evidence": [{ "path": "api/src/routes/notes.ts" }]
+    },
+    {
+      "id": "db",
+      "name": "Postgres",
+      "kind": "store",
+      "detail": "notes, users",
+      "responsibility": "Holds every note as the system of record.",
+      "evidence": [{ "path": "api/src/db/schema.sql" }]
+    },
+    {
+      "id": "indexer",
+      "name": "Indexer",
+      "kind": "worker",
+      "detail": "consumes note events",
+      "responsibility": "Turns a saved note into a search document, out of the request path.",
+      "evidence": [{ "path": "worker/src/indexer.ts" }]
+    },
+    {
+      "id": "search",
+      "name": "Search index",
+      "kind": "store",
+      "detail": "eventually consistent",
+      "responsibility": "Answers full-text queries over a copy of the notes.",
+      "evidence": [{ "path": "worker/src/index-schema.ts" }]
+    },
+    {
+      "id": "mail",
+      "name": "Email provider",
+      "kind": "third-party",
+      "detail": "shared-note invites",
+      "responsibility": "Delivers the invitation email when a note is shared.",
+      "status": "planned"
+    }
+  ],
+
+  "relations": [
+    { "from": "web", "to": "api", "mechanism": "https", "summary": "read and write notes", "what_crosses": "A session cookie and the note body. Never a database credential." },
+    { "from": "api", "to": "db", "mechanism": "database", "summary": "the system of record", "what_crosses": "Note rows, written in one transaction with the user id." },
+    { "from": "api", "to": "indexer", "mechanism": "queue", "summary": "note saved", "what_crosses": "A note id and a version. Not the note body, so a slow index cannot slow a save.", "synchronous": false },
+    { "from": "indexer", "to": "db", "mechanism": "database", "summary": "fetch the note", "what_crosses": "The note body, read at the version the event named." },
+    { "from": "indexer", "to": "search", "mechanism": "http", "summary": "index the document", "what_crosses": "The searchable text and its note id." },
+    { "from": "api", "to": "search", "mechanism": "http", "summary": "query", "what_crosses": "A query string and the caller's user id, so results stay scoped to them." },
+    { "from": "api", "to": "mail", "mechanism": "https", "summary": "send an invite", "status": "planned", "crosses": "ours", "what_crosses": "A recipient address and a signed link. Never the note body." }
+  ],
+
+  "facts": [
+    {
+      "id": "one-writer",
+      "kind": "doctrine",
+      "claim": "Only the API writes notes",
+      "because": "one writer means one place to enforce authorisation, and the worker can be restarted without fear"
+    },
+    {
+      "id": "search-lags",
+      "kind": "tradeoff",
+      "claim": "Search is eventually consistent",
+      "because": "indexing happens after the save so a write never waits on it; a note can be missing from search for a second or two"
+    },
+    {
+      "id": "no-body-in-events",
+      "kind": "guarantee",
+      "claim": "An event carries an id, never a note body",
+      "because": "the queue is not a second copy of the data, so it can be drained or replayed without leaking anything"
+    }
+  ],
+
+  "questions": [
+    {
+      "id": "write",
+      "title": "What happens when a note is saved",
+      "ask": "Where does a note go when someone hits save?",
+      "answer": "The browser posts to the API, which writes the row and publishes an event. Indexing happens afterwards, so the save never waits on search.",
+      "involves": ["web", "api", "db", "indexer", "search"],
+      "highlight": ["api", "db"],
+      "facts": ["one-writer", "no-body-in-events"],
+      "omits": "Sharing and email, which no save touches."
+    },
+    {
+      "id": "search",
+      "title": "How search stays in step",
+      "ask": "If the index is a copy, how far behind can it be?",
+      "answer": "One event per save, consumed out of the request path. A note is searchable a moment after it is written, and the API scopes every query to the caller.",
+      "involves": ["api", "indexer", "db", "search"],
+      "highlight": ["indexer", "search"],
+      "facts": ["search-lags"],
+      "omits": "The browser, which never talks to the index directly."
+    }
+  ]
+}

@@ -49,6 +49,18 @@ node ~/code/archlens/bin/archlens.mjs doctor
 `doctor` reports where archify was found. Override the probe with
 `ARCHLENS_ARCHIFY` if you keep it somewhere unusual.
 
+## Documentation
+
+- **[docs/GUIDE.md](docs/GUIDE.md)** — the walkthrough: build an analysis piece by
+  piece, run it, read the output, and a full field reference.
+- **[examples/notes-app.analysis.json](examples/notes-app.analysis.json)** — a
+  small worked example (six components, two questions) to copy from.
+- **[examples/polygents.analysis.json](examples/polygents.analysis.json)** — a
+  real one, with layers, two boundaries and verified source links.
+- **[schemas/analysis.schema.json](schemas/analysis.schema.json)** — every field,
+  with the reasoning in its descriptions.
+- **[skills/archlens/SKILL.md](skills/archlens/SKILL.md)** — what Claude reads.
+
 ## Use
 
 Ask Claude, in any project: *"map this architecture with archlens"*. Or drive it
@@ -101,7 +113,9 @@ src/repair.mjs                 the diagnostic-driven repair loop
 src/markdown.mjs               the same analysis, as prose
 src/archify.mjs                where archify is, and how to run it
 skills/archlens/SKILL.md       how Claude is meant to use all of it
-examples/polygents.analysis.json
+docs/GUIDE.md                  the walkthrough and field reference
+examples/notes-app.analysis.json   a small worked example
+examples/polygents.analysis.json   a real one, with verified source links
 ```
 
 ## Status
