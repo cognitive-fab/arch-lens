@@ -166,7 +166,9 @@ test/                          twenty tests over what can be wrong quietly
 
 ## Status
 
-v0.1, and honest about it. Run end to end on two systems. The repair loop handles
+v0.1, and honest about it. The marketplace manifest validates with
+`claude plugin validate`, and the published plugin has been installed from
+GitHub and used to render the Litestream example from its own install path. Run end to end on two systems. The repair loop handles
 six classes of renderer diagnostic and reports anything else rather than guessing.
 `archify` is MIT, and this is a consumer of it, not a fork.
 

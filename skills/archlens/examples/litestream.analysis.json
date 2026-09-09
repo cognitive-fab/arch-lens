@@ -436,7 +436,7 @@
         "sqlite-api",
         "lock-table"
       ],
-      "omits": "Everything past the replica; nothing downstream can reach back into the database."
+      "omits": "Everything past the replica. Nothing downstream can reach back into the database."
     },
     {
       "id": "restore",
