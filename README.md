@@ -42,12 +42,21 @@ Needs Node 22+ and archify installed as a skill:
 ```sh
 npx skills add tt-a1i/archify -g          # if you do not have it
 git clone <this repo> ~/code/archlens
-cp -r ~/code/archlens/skills/archlens ~/.claude/skills/archlens
-node ~/code/archlens/bin/archlens.mjs doctor
+node ~/code/archlens/scripts/install-skill.mjs
 ```
 
-`doctor` reports where archify was found. Override the probe with
-`ARCHLENS_ARCHIFY` if you keep it somewhere unusual.
+The install script assembles a self-contained skill folder — `SKILL.md` plus the
+runtime it tells the agent to run — into every agent directory it finds (Claude
+Code, Cursor, Codex, OpenCode), or into one path you pass explicitly. Copying
+`SKILL.md` on its own gives you a skill that reads perfectly and cannot execute a
+single instruction in it.
+
+Verify with `node ~/.claude/skills/archlens/bin/archlens.mjs doctor`, which reports
+where archify was found. Override the probe with `ARCHLENS_ARCHIFY` if you keep it
+somewhere unusual.
+
+**This is not a marketplace plugin.** It installs as a personal skill, from a
+local clone. There is no published repository and nothing to `/plugin install`.
 
 ## Documentation
 
@@ -113,6 +122,7 @@ src/repair.mjs                 the diagnostic-driven repair loop
 src/markdown.mjs               the same analysis, as prose
 src/archify.mjs                where archify is, and how to run it
 skills/archlens/SKILL.md       how Claude is meant to use all of it
+scripts/install-skill.mjs      assembles the self-contained skill folder
 docs/GUIDE.md                  the walkthrough and field reference
 examples/notes-app.analysis.json   a small worked example
 examples/polygents.analysis.json   a real one, with verified source links
