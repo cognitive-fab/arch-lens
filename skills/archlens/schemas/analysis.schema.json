@@ -16,6 +16,21 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "purpose": { "type": "string", "minLength": 1, "description": "One sentence. What the system is for, not how it works." },
+        "domain": { "enum": ["software", "document"], "default": "software", "description": "What is being analysed. 'document' relabels the legend for prose subjects such as a paper or a specification, and takes evidence from doc_refs rather than from a repository." },
+        "legend": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Override the legend wording for any of the seven diagram families. Overrides the domain default.",
+          "properties": {
+            "frontend": { "type": "string", "maxLength": 24, "description": "cli, ui" },
+            "backend": { "type": "string", "maxLength": 24, "description": "api, service, worker, library, engine, workflow, broker" },
+            "database": { "type": "string", "maxLength": 24, "description": "store, file-store, cache, schema, config" },
+            "messagebus": { "type": "string", "maxLength": 24, "description": "queue" },
+            "security": { "type": "string", "maxLength": 24, "description": "sandbox, gateway" },
+            "cloud": { "type": "string", "maxLength": 24 },
+            "external": { "type": "string", "maxLength": 24, "description": "model-provider, external-service, third-party" }
+          }
+        },
         "repository": {
           "type": "object",
           "additionalProperties": false,

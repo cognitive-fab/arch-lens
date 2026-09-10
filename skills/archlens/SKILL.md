@@ -82,6 +82,19 @@ question decides what is in it. Name the components the answer turns on in
 is listed on the diagram's own card, so nothing disappears silently. A question
 with no `answer` produces a diagram that leads with nothing.
 
+**When the subject is not code, say so.** Set `system.domain` to `document` and
+the seven legend families are relabelled for prose subjects — Input, Method,
+Data, Signal, Constraint, Environment, Prior work — because "Backend" under a box
+that stands for a training procedure tells the reader something false. The
+shapes, colours and layout do not move; only the wording does. `system.legend`
+overrides any single label if the defaults are wrong for your paper.
+
+Evidence works differently there too. A document has no revision to pin and no
+line to resolve, so a component's `doc_refs` section is carried on the node
+itself — `§3.2` under the box, beside the status mark when there is one. Give
+`doc_refs` a `section` for every component you want cited; the first one is what
+the diagram has room for, and the rest survive in the generated document.
+
 **Write the prose the diagram cannot hold.** A node has room for two words and a
 card for three short lines, which is enough for a reader who already knows the
 system. Three fields carry the rest, and they are rendered below the diagram

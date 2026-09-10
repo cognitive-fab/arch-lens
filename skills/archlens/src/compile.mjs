@@ -37,6 +37,30 @@ const TYPE_OF = {
   'third-party': 'external',
 };
 
+/**
+ * What the seven boxes are called when the subject is not software.
+ *
+ * The shapes are archify's and they are fine — a paper has inputs, methods,
+ * data and prior work, and they want distinguishing exactly as much as a
+ * frontend and a database do. What is wrong on a paper is the *wording*:
+ * "Backend" under a box that stands for a training procedure tells a reader
+ * something false about what they are looking at. Only the labels change; the
+ * geometry, the colours and the compiler are untouched.
+ *
+ * These are defaults, not doctrine. `system.legend` overrides any of them.
+ */
+const DOMAIN_LEGEND = {
+  document: {
+    frontend: 'Input',
+    backend: 'Method',
+    database: 'Data',
+    messagebus: 'Signal',
+    security: 'Constraint',
+    cloud: 'Environment',
+    external: 'Prior work',
+  },
+};
+
 const CARD_DOT = {
   answer: 'cyan',
   doctrine: 'emerald',
@@ -186,7 +210,11 @@ export function compileQuestion(analysis, questionId, options = {}) {
     };
     const detail = c.detail ?? c.responsibility;
     if (detail) spec.sublabel = shorten(detail, budget);
-    if (c.status && c.status !== 'built') spec.tag = c.status;
+    const marks = [];
+    if (c.status && c.status !== 'built') marks.push(c.status);
+    const ref = docRefFor(c, analysis);
+    if (ref) marks.push(ref);
+    if (marks.length) spec.tag = marks.join(' · ');
     const sources = sourcesFor(c, analysis);
     if (sources) spec.sources = sources;
     return spec;
@@ -216,6 +244,7 @@ export function compileQuestion(analysis, questionId, options = {}) {
       title: question.title,
       quality_profile: 'showcase',
       ...(analysis.system.repository ? { repository: analysis.system.repository } : {}),
+      ...(legendFor(analysis) ? { legend: legendFor(analysis) } : {}),
       ...(views.length ? { views } : {}),
     },
     components,
@@ -271,8 +300,51 @@ function shorten(text, budget) {
   return (out || clean.slice(0, budget)).replace(TRAILING, '');
 }
 
-/** Source links are only emitted when they can actually be verified. */
+/**
+ * The section a component was read from, short enough to sit under the node.
+ *
+ * Only the first reference: a node has one line for this, and a component that
+ * needs three citations is telling you it should be two components. The rest
+ * survive in the generated document, which has room.
+ */
+function docRefFor(component, analysis) {
+  if (analysis.system.domain !== 'document') return null;
+  const ref = component.doc_refs?.find((d) => d.section);
+  return ref ? ref.section.slice(0, 24) : null;
+}
+
+/**
+ * Legend label overrides, or null to leave archify's own wording alone.
+ *
+ * Built from the domain default and then from `system.legend`, so an author can
+ * take the defaults, correct one word, and keep the rest.
+ */
+function legendFor(analysis) {
+  const defaults = DOMAIN_LEGEND[analysis.system.domain] ?? {};
+  const merged = { ...defaults, ...(analysis.system.legend ?? {}) };
+  const entries = Object.fromEntries(
+    Object.entries(merged)
+      .filter(([, label]) => typeof label === 'string' && label.trim())
+      .map(([kind, label]) => [kind, { label: label.trim() }]),
+  );
+  return Object.keys(entries).length ? { entries } : null;
+}
+
+/**
+ * Source links are only emitted when they can actually be verified.
+ *
+ * For a document that means something different from a repository. There is no
+ * revision to pin and no line to resolve, so the reference is the section the
+ * claim came from, carried as the badge's label. The path still has to be the
+ * document itself, which keeps the link answerable: a reader can open it and
+ * find the section named.
+ */
 function sourcesFor(component, analysis) {
+  // A document has no revision to pin, and archify's `sources` is repository
+  // evidence by contract — it refuses to render without /meta/repository. The
+  // section reference goes on the node's tag instead, where a reader looking at
+  // the box can see which part of the paper it came from.
+  if (analysis.system.domain === 'document') return null;
   if (!analysis.system.repository) return null;
   if (!component.evidence || component.evidence.length === 0) return null;
   return component.evidence.slice(0, 3).map((e) => ({

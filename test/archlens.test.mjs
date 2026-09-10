@@ -248,3 +248,66 @@ test('prose is escaped, so an analysis cannot inject markup into the page', () =
   assert.ok(!html.includes('<script>alert'), 'raw markup must not survive');
   assert.match(html, /&lt;script&gt;/);
 });
+
+// --- documents ------------------------------------------------------------
+//
+// A paper is not a codebase, and the two places that showed it were the legend
+// ("Backend" under a training procedure) and the evidence (a file path where a
+// section reference belongs).
+
+const paper = () => ({
+  schema_version: 1,
+  system: {
+    name: 'P',
+    purpose: 'A paper.',
+    domain: 'document',
+    sources: [{ kind: 'document', ref: 'paper.pdf' }],
+  },
+  components: [
+    { id: 'a', name: 'Method', kind: 'engine', responsibility: 'Does the thing.', doc_refs: [{ path: 'paper.pdf', section: '§3.1' }] },
+    { id: 'b', name: 'Data', kind: 'store', responsibility: 'Holds the corpus.' },
+  ],
+  relations: [{ from: 'b', to: 'a', mechanism: 'file', summary: 'trains', what_crosses: 'Sentence pairs.' }],
+  questions: [{ id: 'q', title: 'How', ask: 'How does it work?', answer: 'B trains A.', involves: ['a', 'b'] }],
+});
+
+test('a document relabels the legend without touching the geometry', () => {
+  const { spec } = compileQuestion(paper(), 'q');
+  assert.equal(spec.meta.legend.entries.backend.label, 'Method');
+  assert.equal(spec.meta.legend.entries.external.label, 'Prior work');
+  assert.equal(spec.components.find((c) => c.id === 'a').type, 'backend', 'the shape must not move');
+});
+
+test('software keeps the renderer’s own legend wording', () => {
+  const { spec } = compileQuestion(minimal(), 'q');
+  assert.equal(spec.meta.legend, undefined, 'no override means archify decides');
+});
+
+test('an explicit legend overrides the domain default', () => {
+  const analysis = paper();
+  analysis.system.legend = { backend: 'Procedure' };
+  const { spec } = compileQuestion(analysis, 'q');
+  assert.equal(spec.meta.legend.entries.backend.label, 'Procedure');
+  assert.equal(spec.meta.legend.entries.database.label, 'Data', 'the rest of the default survives');
+});
+
+test('a document cites its section on the node, not a repository path', () => {
+  const { spec } = compileQuestion(paper(), 'q');
+  const method = spec.components.find((c) => c.id === 'a');
+  assert.equal(method.tag, '§3.1');
+  assert.equal(method.sources, undefined, 'archify refuses repository evidence without a repository');
+});
+
+test('status and section share the one line a node has for them', () => {
+  const analysis = paper();
+  analysis.components[0].status = 'planned';
+  const { spec } = compileQuestion(analysis, 'q');
+  assert.equal(spec.components.find((c) => c.id === 'a').tag, 'planned · §3.1');
+});
+
+test('a glossary term used only on an edge still counts', () => {
+  const analysis = paper();
+  analysis.glossary = [{ term: 'Sentence pairs', definition: 'Aligned source and target sentences.' }];
+  const terms = glossaryFor(analysis.questions[0], analysis, index(analysis)).map((t) => t.term);
+  assert.deepEqual(terms, ['Sentence pairs']);
+});

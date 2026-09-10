@@ -52,6 +52,11 @@ export function glossaryFor(question, analysis, idx) {
       const c = idx?.components?.get(id);
       return c ? `${c.name} ${c.responsibility ?? ''} ${c.detail ?? ''}` : '';
     }),
+    // The edges are on the diagram too, and their labels name things a reader
+    // will ask about just as often as the boxes do.
+    ...(analysis.relations ?? [])
+      .filter((r) => (question.involves ?? []).includes(r.from) && (question.involves ?? []).includes(r.to))
+      .map((r) => `${r.summary ?? ''} ${r.what_crosses ?? ''}`),
   ].filter(Boolean).join(' ').toLowerCase();
 
   return entries.filter((entry) => {
