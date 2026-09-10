@@ -131,11 +131,13 @@
           "id": { "$ref": "#/$defs/id" },
           "title": { "type": "string", "minLength": 1, "maxLength": 60 },
           "ask": { "type": "string", "minLength": 1, "description": "The question in plain words, ending in a question mark." },
+          "context": { "type": "string", "maxLength": 1200, "description": "Prose. What the question is about and why a reader should care, before the answer means anything. Rendered under the title, above the diagram." },
           "answer": { "type": "string", "description": "The short answer. Becomes the diagram's lead card." },
           "involves": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/id" } },
           "highlight": { "type": "array", "items": { "$ref": "#/$defs/id" }, "description": "Components the answer turns on. Rendered with emphasis." },
           "facts": { "type": "array", "items": { "$ref": "#/$defs/id" }, "description": "Fact ids to render as cards beside the diagram." },
-          "omits": { "type": "string", "description": "What this view deliberately leaves out, and why." }
+          "omits": { "type": "string", "description": "What this view deliberately leaves out, and why." },
+          "narrative": { "type": "string", "maxLength": 6000, "description": "The long read, for a junior developer or junior researcher meeting the system for the first time. Walk the diagram in order and say what each step means. Blank lines become paragraphs. Rendered below the diagram, never on it." }
         }
       }
     },
@@ -153,6 +155,21 @@
           "claim": { "type": "string", "minLength": 1 },
           "because": { "type": "string" },
           "evidence": { "$ref": "#/$defs/evidenceList" }
+        }
+      }
+    },
+
+    "glossary": {
+      "type": "array",
+      "description": "Terms a newcomer will not know. Each question renders only the terms it uses.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["term", "definition"],
+        "properties": {
+          "term": { "type": "string", "minLength": 1, "maxLength": 60 },
+          "definition": { "type": "string", "minLength": 1, "maxLength": 400, "description": "One or two sentences. Assume no prior exposure to this system." },
+          "also": { "type": "array", "items": { "type": "string" }, "description": "Abbreviations or alternate spellings that should match this term." }
         }
       }
     },

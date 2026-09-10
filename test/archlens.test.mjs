@@ -17,6 +17,7 @@ import { validateAnalysis, index } from '../skills/archlens/src/model.mjs';
 import { compileQuestion } from '../skills/archlens/src/compile.mjs';
 import { rank, layout, detailBudget } from '../skills/archlens/src/layout.mjs';
 import { renderMarkdown } from '../skills/archlens/src/markdown.mjs';
+import { briefHtml, glossaryFor } from '../skills/archlens/src/brief.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const example = JSON.parse(readFileSync(join(here, '..', 'skills', 'archlens', 'examples', 'litestream.analysis.json'), 'utf8'));
@@ -198,4 +199,52 @@ test('the markdown carries what the diagram cannot', () => {
 test('a partially built component is marked in the document', () => {
   const markdown = renderMarkdown(example);
   assert.match(markdown, /\*\(partial\)\*/);
+});
+
+// --- the brief ------------------------------------------------------------
+//
+// The diagram holds two words per node and three short cards. Everything a
+// newcomer needs beyond that lives below the picture, and can be wrong in the
+// two ways prose is usually wrong: absent, or indiscriminate.
+
+test('the brief carries the question, its context and the long read', () => {
+  const analysis = minimal();
+  analysis.questions[0].context = 'Why any of this matters.';
+  analysis.questions[0].narrative = 'First A runs.\n\nThen B answers.';
+  const html = briefHtml(analysis.questions[0], analysis, index(analysis));
+  assert.match(html, /How does it work\?/);
+  assert.match(html, /Why any of this matters\./);
+  assert.match(html, /<p>First A runs\.<\/p>/);
+  assert.match(html, /<p>Then B answers\.<\/p>/, 'blank lines should become paragraphs');
+});
+
+test('a question with nothing to add gets no brief at all', () => {
+  const analysis = minimal();
+  assert.equal(briefHtml(analysis.questions[0], analysis, index(analysis)), '');
+});
+
+test('the glossary is filtered to the terms a question actually uses', () => {
+  const analysis = minimal();
+  analysis.questions[0].narrative = 'B keeps an index of everything A sends it.';
+  analysis.glossary = [
+    { term: 'Index', definition: 'A derived copy shaped for lookup.' },
+    { term: 'Quorum', definition: 'A majority of replicas.' },
+  ];
+  const terms = glossaryFor(analysis.questions[0], analysis, index(analysis)).map((t) => t.term);
+  assert.deepEqual(terms, ['Index'], 'an unused term is a wall, not a service');
+});
+
+test('a glossary term matches on its alternate spellings too', () => {
+  const analysis = minimal();
+  analysis.questions[0].context = 'The indexer runs out of band.';
+  analysis.glossary = [{ term: 'Index', definition: 'A derived copy.', also: ['indexer'] }];
+  assert.equal(glossaryFor(analysis.questions[0], analysis, index(analysis)).length, 1);
+});
+
+test('prose is escaped, so an analysis cannot inject markup into the page', () => {
+  const analysis = minimal();
+  analysis.questions[0].narrative = 'A <script>alert(1)</script> in the prose.';
+  const html = briefHtml(analysis.questions[0], analysis, index(analysis));
+  assert.ok(!html.includes('<script>alert'), 'raw markup must not survive');
+  assert.match(html, /&lt;script&gt;/);
 });

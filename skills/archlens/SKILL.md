@@ -82,6 +82,25 @@ question decides what is in it. Name the components the answer turns on in
 is listed on the diagram's own card, so nothing disappears silently. A question
 with no `answer` produces a diagram that leads with nothing.
 
+**Write the prose the diagram cannot hold.** A node has room for two words and a
+card for three short lines, which is enough for a reader who already knows the
+system. Three fields carry the rest, and they are rendered below the diagram
+rather than on it, so none of them competes for space with the picture:
+
+- `context` — what the question is *about*, before the answer means anything.
+  Why a reader should care, what tension the question sits on. Two or three
+  sentences. Without it the diagram opens with a title and an answer to a
+  question the reader has not yet understood.
+- `narrative` — the long read, pitched at a junior developer or a junior
+  researcher meeting the system for the first time. Walk the diagram in the
+  order the reader's eye will take it and say what each step means. Blank lines
+  become paragraphs.
+- `glossary` — top level, not per question. Terms a newcomer will not know, each
+  with a definition that assumes no prior exposure. Each question renders only
+  the terms it actually uses, matched against its own prose and the components it
+  draws, so a long glossary costs a short diagram nothing. Use `also` for
+  abbreviations and alternate spellings.
+
 **Facts** carry the doctrines, guarantees, constraints, trade-offs and risks that
 belong to the architecture rather than to any one component. Attach them to the
 questions they answer; they become the cards beside the diagram.

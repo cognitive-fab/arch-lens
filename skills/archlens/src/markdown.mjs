@@ -11,6 +11,7 @@
 // reference.
 
 import { index } from './model.mjs';
+import { glossaryFor } from './brief.mjs';
 
 const STATUS_MARK = { built: '', partial: ' *(partial)*', planned: ' *(planned)*' };
 
@@ -46,6 +47,10 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
     w();
     w(`**${q.ask}**`);
     w();
+    if (q.context) {
+      w(q.context);
+      w();
+    }
     if (q.answer) {
       w(q.answer);
       w();
@@ -65,6 +70,19 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
     w();
     if (q.omits) {
       w(`**Deliberately not shown.** ${q.omits}`);
+      w();
+    }
+    if (q.narrative) {
+      w('#### The long read');
+      w();
+      w(q.narrative);
+      w();
+    }
+    const terms = glossaryFor(q, analysis, idx);
+    if (terms.length) {
+      w('#### Terms used here');
+      w();
+      for (const t of terms) w(`- **${t.term}** — ${t.definition}`);
       w();
     }
   }

@@ -8,11 +8,12 @@
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import { loadAnalysis, validateAnalysis } from '../src/model.mjs';
+import { loadAnalysis, validateAnalysis, index } from '../src/model.mjs';
 import { compileQuestion, compileAll } from '../src/compile.mjs';
 import { repair, compactVertically } from '../src/repair.mjs';
 import { renderMarkdown } from '../src/markdown.mjs';
 import { archifyRoot, deliver, visualCheck } from '../src/archify.mjs';
+import { injectBrief } from '../src/brief.mjs';
 
 const USAGE = `archlens — an architecture analysis, rendered
 
@@ -125,6 +126,7 @@ function cmdRender() {
     ? [{ id: only, ...compileQuestion(analysis, only, { collapse: has('collapse') }) }]
     : compileAll(analysis, { collapse: has('collapse') });
 
+  const idx = index(analysis);
   const produced = new Map();
   let failures = 0;
 
@@ -181,6 +183,13 @@ function cmdRender() {
       }
       say(`  browser  ${check.ok ? 'contained at every checked viewport' : 'STILL OVERFLOWING — open it and look'}`);
       if (!check.ok) failures += 1;
+    }
+
+    // After the check loop, never before: a re-delivery would overwrite it.
+    if (injectBrief(htmlPath, target.question, analysis, idx)) {
+      say('  brief    context, narrative and glossary added below the diagram');
+    } else if (!target.question.context && !target.question.narrative) {
+      say('  brief    none — the question has no context or narrative to add');
     }
 
     produced.set(target.id, `${stem}.html`);

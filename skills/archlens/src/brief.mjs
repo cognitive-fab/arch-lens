@@ -1,0 +1,180 @@
+// The prose the diagram cannot hold.
+//
+// A diagram has room for two words per node and three short cards beside it.
+// That is enough to answer a question for someone who already knows the system
+// and not nearly enough for someone meeting it for the first time. The cards
+// stay as they are — they are the right size for what they do. This adds what
+// was missing underneath: what the question is even about, the long read, and
+// the words a newcomer will not know.
+//
+// It is injected after delivery rather than compiled into the specification,
+// because archify's node labels are budgeted for a diagram and this is not
+// diagram content. The injection point is immediately before </body>, which
+// leaves the SVG, the toolbar and every script untouched. Colours come from
+// archify's own custom properties so the section follows the theme toggle
+// without knowing anything about it.
+
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const MARKER = 'data-archlens-brief';
+
+const esc = (s) => String(s)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
+/** Paragraphs, split on blank lines, so a narrative can have shape. */
+const paras = (text) => String(text)
+  .split(/\n\s*\n/)
+  .map((p) => p.trim())
+  .filter(Boolean);
+
+/**
+ * Terms this question actually uses.
+ *
+ * Filtering matters more than it looks: a glossary of forty terms under a
+ * six-node diagram is a wall, and the reader stops trusting that any of it is
+ * relevant. A term earns its place by appearing in the question's own prose or
+ * in the name of a component the diagram draws.
+ */
+export function glossaryFor(question, analysis, idx) {
+  const entries = analysis.glossary ?? [];
+  if (!entries.length) return [];
+
+  const haystack = [
+    question.ask,
+    question.context,
+    question.answer,
+    question.narrative,
+    question.omits,
+    ...(question.involves ?? []).map((id) => {
+      const c = idx?.components?.get(id);
+      return c ? `${c.name} ${c.responsibility ?? ''} ${c.detail ?? ''}` : '';
+    }),
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  return entries.filter((entry) => {
+    const forms = [entry.term, ...(entry.also ?? [])];
+    return forms.some((form) => haystack.includes(String(form).toLowerCase()));
+  });
+}
+
+/** The section, or '' when the analysis gave it nothing to say. */
+export function briefHtml(question, analysis, idx) {
+  const glossary = glossaryFor(question, analysis, idx);
+  const hasProse = Boolean(question.context || question.narrative);
+  if (!hasProse && !glossary.length) return '';
+
+  const out = [];
+  out.push(`<section ${MARKER} aria-labelledby="archlens-brief-title" hidden>`);
+  out.push('  <div class="archlens-brief-inner">');
+  out.push(`    <h2 id="archlens-brief-title">${esc(question.title)}</h2>`);
+  out.push(`    <p class="archlens-ask">${esc(question.ask)}</p>`);
+
+  if (question.context) {
+    out.push('    <div class="archlens-context">');
+    for (const p of paras(question.context)) out.push(`      <p>${esc(p)}</p>`);
+    out.push('    </div>');
+  }
+
+  if (question.narrative) {
+    out.push('    <h3>The long read</h3>');
+    out.push('    <div class="archlens-narrative">');
+    for (const p of paras(question.narrative)) out.push(`      <p>${esc(p)}</p>`);
+    out.push('    </div>');
+  }
+
+  if (glossary.length) {
+    out.push('    <h3>Terms used here</h3>');
+    out.push('    <dl class="archlens-glossary">');
+    for (const entry of glossary) {
+      out.push(`      <dt>${esc(entry.term)}</dt>`);
+      out.push(`      <dd>${esc(entry.definition)}</dd>`);
+    }
+    out.push('    </dl>');
+  }
+
+  out.push('  </div>');
+  out.push('</section>');
+  out.push(REVEAL);
+  return out.join('\n');
+}
+
+// Revealed only once archify's reader has settled.
+//
+// The reader measures document.documentElement.scrollHeight and re-lays itself
+// out from what it finds. A section appended in flow changes that number, the
+// reader responds, the number changes again, and its stability sampler never
+// sees three identical frames — so `archify visual-check` fails on a page that
+// is in fact fine. Staying hidden until after load keeps the measurement the
+// reader's own, and the brief is below the fold in any case.
+const REVEAL = `<script ${MARKER}>
+  (function () {
+    var reveal = function () {
+      var el = document.querySelector('section[${MARKER}]');
+      if (el) el.hidden = false;
+    };
+    if (document.readyState === 'complete') setTimeout(reveal, 1200);
+    else window.addEventListener('load', function () { setTimeout(reveal, 1200); });
+  })();
+</script>`;
+
+const STYLE = `<style ${MARKER}>
+  section[${MARKER}] {
+    background: var(--bg, #0d1117);
+    color: var(--text, #e6edf3);
+    border-top: 1px solid var(--panel-border, rgba(255,255,255,0.12));
+    padding: 32px 24px 56px;
+    font: 400 15px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  section[${MARKER}] .archlens-brief-inner { max-width: 68ch; margin: 0 auto; }
+  section[${MARKER}] h2 { font-size: 1.35rem; line-height: 1.3; margin: 0 0 4px; }
+  section[${MARKER}] h3 {
+    font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-muted, #9aa4b2); margin: 32px 0 8px;
+  }
+  section[${MARKER}] .archlens-ask {
+    color: var(--text-muted, #9aa4b2); font-size: 1.02rem; margin: 0 0 20px;
+  }
+  section[${MARKER}] p { margin: 0 0 14px; }
+  section[${MARKER}] .archlens-context {
+    border-left: 3px solid var(--guide-accent, #6aa6ff);
+    padding-left: 16px;
+  }
+  section[${MARKER}] .archlens-glossary { margin: 0; }
+  section[${MARKER}] .archlens-glossary dt {
+    font-weight: 600; margin-top: 14px;
+  }
+  section[${MARKER}] .archlens-glossary dd {
+    margin: 2px 0 0; color: var(--text-muted, #9aa4b2);
+  }
+  @media print { section[${MARKER}] { break-before: page; } }
+</style>`;
+
+/**
+ * Put the brief into a delivered page.
+ *
+ * Idempotent: a previous brief is removed first, so re-rendering after the
+ * browser check re-delivered the file cannot stack two copies. Returns false
+ * when there was nothing to add, so the caller can stay quiet about it.
+ */
+export function injectBrief(htmlPath, question, analysis, idx) {
+  const body = briefHtml(question, analysis, idx);
+  if (!body) return false;
+
+  let html = readFileSync(htmlPath, 'utf8');
+  html = html.replace(new RegExp(`\\n?<style ${MARKER}>[\\s\\S]*?</style>`, 'g'), '');
+  html = html.replace(new RegExp(`\\n?<section ${MARKER}[\\s\\S]*?</section>`, 'g'), '');
+  html = html.replace(new RegExp(`\\n?<script ${MARKER}>[\\s\\S]*?</script>`, 'g'), '');
+
+  const close = html.lastIndexOf('</body>');
+  if (close === -1) return false;
+
+  writeFileSync(
+    htmlPath,
+    `${html.slice(0, close)}${STYLE}\n${body}\n${html.slice(close)}`,
+    'utf8',
+  );
+  return true;
+}
