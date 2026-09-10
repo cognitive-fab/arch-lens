@@ -74,30 +74,38 @@ export function briefHtml(question, analysis, idx) {
   const out = [];
   out.push(`<section ${MARKER} aria-labelledby="archlens-brief-title" hidden>`);
   out.push('  <div class="archlens-brief-inner">');
-  out.push(`    <h2 id="archlens-brief-title">${esc(question.title)}</h2>`);
-  out.push(`    <p class="archlens-ask">${esc(question.ask)}</p>`);
+
+  // The prose column, sitting under the two left columns of the diagram.
+  out.push('    <div class="archlens-prose">');
+  out.push(`      <h2 id="archlens-brief-title">${esc(question.title)}</h2>`);
+  out.push(`      <p class="archlens-ask">${esc(question.ask)}</p>`);
 
   if (question.context) {
-    out.push('    <div class="archlens-context">');
-    for (const p of paras(question.context)) out.push(`      <p>${esc(p)}</p>`);
-    out.push('    </div>');
+    out.push('      <div class="archlens-context">');
+    for (const p of paras(question.context)) out.push(`        <p>${esc(p)}</p>`);
+    out.push('      </div>');
   }
 
   if (question.narrative) {
-    out.push('    <h3>The long read</h3>');
-    out.push('    <div class="archlens-narrative">');
-    for (const p of paras(question.narrative)) out.push(`      <p>${esc(p)}</p>`);
-    out.push('    </div>');
+    out.push('      <h3>The long read</h3>');
+    out.push('      <div class="archlens-narrative">');
+    for (const p of paras(question.narrative)) out.push(`        <p>${esc(p)}</p>`);
+    out.push('      </div>');
   }
+  out.push('    </div>');
 
+  // The glossary is reference, not argument: it belongs beside the prose in the
+  // rightmost column, where a reader can glance at it without losing their line.
   if (glossary.length) {
-    out.push('    <h3>Terms used here</h3>');
-    out.push('    <dl class="archlens-glossary">');
+    out.push('    <aside class="archlens-terms">');
+    out.push('      <h3>Terms used here</h3>');
+    out.push('      <dl class="archlens-glossary">');
     for (const entry of glossary) {
-      out.push(`      <dt>${esc(entry.term)}</dt>`);
-      out.push(`      <dd>${esc(entry.definition)}</dd>`);
+      out.push(`        <dt>${esc(entry.term)}</dt>`);
+      out.push(`        <dd>${esc(entry.definition)}</dd>`);
     }
-    out.push('    </dl>');
+    out.push('      </dl>');
+    out.push('    </aside>');
   }
 
   out.push('  </div>');
@@ -133,7 +141,34 @@ const STYLE = `<style ${MARKER}>
     padding: 32px 24px 56px;
     font: 400 15px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  section[${MARKER}] .archlens-brief-inner { max-width: 68ch; margin: 0 auto; }
+  /* Two thirds prose, one third reference — the same split the diagram above
+     uses, so the narrative reads under the picture it describes rather than
+     down the middle of it. */
+  section[${MARKER}] .archlens-brief-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 0 48px;
+    align-items: start;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  section[${MARKER}] .archlens-prose { grid-column: 1; min-width: 0; }
+  section[${MARKER}] .archlens-terms {
+    grid-column: 2;
+    min-width: 0;
+    border-left: 1px solid var(--panel-border, rgba(255,255,255,0.12));
+    padding-left: 24px;
+  }
+  section[${MARKER}] .archlens-terms h3 { margin-top: 0; }
+  @media (max-width: 900px) {
+    section[${MARKER}] .archlens-brief-inner { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    section[${MARKER}] .archlens-prose,
+    section[${MARKER}] .archlens-terms { grid-column: 1; }
+    section[${MARKER}] .archlens-terms {
+      border-left: 0; padding-left: 0; margin-top: 32px;
+    }
+    section[${MARKER}] .archlens-terms h3 { margin-top: 32px; }
+  }
   section[${MARKER}] h2 { font-size: 1.35rem; line-height: 1.3; margin: 0 0 4px; }
   section[${MARKER}] h3 {
     font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
