@@ -114,22 +114,41 @@ export function briefHtml(question, analysis, idx) {
   return out.join('\n');
 }
 
-// Revealed only once archify's reader has settled.
+// Revealed only once archify's reader has settled, and only after its width is
+// pinned.
 //
-// The reader measures document.documentElement.scrollHeight and re-lays itself
-// out from what it finds. A section appended in flow changes that number, the
-// reader responds, the number changes again, and its stability sampler never
-// sees three identical frames — so `archify visual-check` fails on a page that
-// is in fact fine. Staying hidden until after load keeps the measurement the
-// reader's own, and the brief is below the fold in any case.
+// archify's adaptive reader exists to fit a wide diagram into one screen: it
+// measures `max(documentElement.scrollHeight, body.scrollHeight) - innerHeight`
+// and, whenever the page overflows the viewport, narrows `.container` through
+// --archify-reader-width to buy back vertical room. Narrowing changes the height
+// of the header and cards it observes, which schedules another measurement.
+//
+// On a diagram-only page that converges. Put prose below the diagram and it
+// cannot: the page now always overflows, so the reader shrinks, re-measures,
+// still overflows, restores, and oscillates — visibly flashing between two zoom
+// factors, with the main thread pegged. Hiding the section until after load was
+// not enough, because the reader keeps measuring for the life of the page.
+//
+// So the width is frozen at whatever the reader chose while it still had a
+// diagram-only page to reason about, and pinned with !important. The reader may
+// go on setting the variable; nothing reads it any more, no observed element
+// resizes, and the loop has nothing to feed on. The cost is honest and small:
+// a page that carries a narrative gives up automatic re-fitting, which was
+// never going to fit a page with a narrative on it anyway.
 const REVEAL = `<script ${MARKER}>
   (function () {
-    var reveal = function () {
+    var pinAndReveal = function () {
+      var html = document.documentElement;
+      var chosen = (html.style.getPropertyValue('--archify-reader-width') || '').trim();
+      var pin = document.createElement('style');
+      pin.setAttribute('${MARKER}', '');
+      pin.textContent = '.container{max-width:' + (chosen || '1440px') + ' !important;}';
+      document.head.appendChild(pin);
       var el = document.querySelector('section[${MARKER}]');
       if (el) el.hidden = false;
     };
-    if (document.readyState === 'complete') setTimeout(reveal, 1200);
-    else window.addEventListener('load', function () { setTimeout(reveal, 1200); });
+    if (document.readyState === 'complete') setTimeout(pinAndReveal, 1200);
+    else window.addEventListener('load', function () { setTimeout(pinAndReveal, 1200); });
   })();
 </script>`;
 
