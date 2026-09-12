@@ -13,28 +13,6 @@ overlapping labels and crossing routes, verified source links, and a real browse
 check. Arch-lens supplies the thing archify has no opinion about — what the boxes
 mean and why this diagram exists.
 
-## Why
-
-A renderer holds about two words per node. Author straight into one and the
-reasoning never gets written down: what ships is a picture that passes every
-check and answers no question. Three diagrams of the same system, drawn from
-three different readings, will disagree and nobody can say which is right.
-
-So the analysis is the artifact:
-
-- **Components carry a responsibility**, not a caption — one sentence saying what
-  the thing is answerable for.
-- **Relations carry `what_crosses`**, the data or control that actually moves.
-  It is the field prose most often omits and readers most often want.
-- **Boundaries carry a claim** about everything inside them. A box that only
-  groups is decoration, and the validator says so.
-- **Components carry a status.** `built` means it was seen in the code; `planned`
-  means the design names it and the code does not. A diagram that cannot tell you
-  which is which is a diagram you cannot plan from.
-- **Questions are the unit of a diagram.** One diagram per question, and the
-  question decides what is in it. Everything connected but out of scope is named
-  on the diagram's own card rather than vanishing.
-
 ## Install
 
 Needs Node 22+ and the archify renderer:
@@ -62,23 +40,50 @@ Verify with `node ~/.claude/skills/archlens/bin/archlens.mjs doctor`, which repo
 where archify was found. Override the probe with `ARCHLENS_ARCHIFY` if you keep it
 somewhere unusual.
 
-## Documentation
+## Use it from Claude Code
 
-- **[GUIDE.md](skills/archlens/docs/GUIDE.md)** — the walkthrough: build an
-  analysis piece by piece, run it, read the output, and a full field reference.
-- **[notes-app.analysis.json](skills/archlens/examples/notes-app.analysis.json)** —
-  a small invented example, six components and two questions, to copy from.
-- **[litestream.analysis.json](skills/archlens/examples/litestream.analysis.json)** —
-  a real one: [Litestream](https://github.com/benbjohnson/litestream) analysed at
-  a pinned commit, with source links verified against git.
-- **[analysis.schema.json](skills/archlens/schemas/analysis.schema.json)** — every
-  field, with the reasoning in its descriptions.
-- **[SKILL.md](skills/archlens/SKILL.md)** — what Claude reads.
+Open Claude Code in the project you want to understand and ask. Three shapes of
+request cover most of what people want:
 
-## Use
+**Map the whole system.**
 
-Ask Claude, in any project: *"map this architecture with arch-lens"*. Or drive it
-directly:
+> map this architecture with archlens
+
+Claude reads the code, writes `<name>.analysis.json`, validates it, renders one
+diagram per question into `docs/architecture/`, and reports what it delivered —
+including anything it had to leave out of a picture.
+
+**Analyse a design document instead of code.**
+
+> using docs/02-architecture.md as the only source, write an archlens analysis and render it
+
+Naming the source keeps the analysis honest: components the document describes
+but the code does not contain are marked `planned`, not `built`, and the
+document is recorded in `system.sources` so a reader knows where the diagram
+came from.
+
+**Ask one question.**
+
+> /archlens how does the harness mount the gate?
+
+A question is the unit of a diagram. Claude finds the components the answer
+turns on, writes the answer, the context and a narrative for a newcomer, and
+renders a single diagram for it. If the project already has an analysis, the
+question is added to it and the new diagram joins the existing set.
+
+Whatever you ask, the output is the same: `*.analysis.json` (the thing worth
+reviewing), interactive HTML diagrams, and a markdown document generated from the
+same analysis so the two cannot drift apart. Never hand-edit the generated
+`*.architecture.json` or `*.html`; change the analysis and render again.
+
+## Write the analysis yourself
+
+Everything Claude does, you can do by hand. The analysis is a JSON file against
+[`analysis.schema.json`](skills/archlens/schemas/analysis.schema.json): a
+`system`, its `components`, `relations`, `boundaries`, and the `questions` each
+diagram answers. Copy
+[notes-app.analysis.json](skills/archlens/examples/notes-app.analysis.json) — six
+components, two questions — and edit it. Then drive the CLI:
 
 ```sh
 archlens validate  system.analysis.json
@@ -87,9 +92,36 @@ archlens render    system.analysis.json docs/architecture --repo-root .
 archlens doc       system.analysis.json ARCHITECTURE.md
 ```
 
-`render` compiles every question, repairs each specification against archify's
-diagnostics until it passes, delivers the HTML, checks it in headless Chrome, and
-writes a markdown document beside the diagrams.
+`validate` checks references and warns when the analysis is too thin to be worth
+drawing. `render` compiles every question, repairs each specification against
+archify's diagnostics until it passes, delivers the HTML, checks it in headless
+Chrome, and writes a markdown document beside the diagrams. `--repo-root` is what
+turns `code_refs` into verified source links.
+
+[GUIDE.md](skills/archlens/docs/GUIDE.md) walks through building an analysis
+piece by piece and has the full field reference.
+
+## Why the analysis comes first
+
+A renderer holds about two words per node. Author straight into one and the
+reasoning never gets written down: what ships is a picture that passes every
+check and answers no question. Three diagrams of the same system, drawn from
+three different readings, will disagree and nobody can say which is right.
+
+So the analysis is the artifact:
+
+- **Components carry a responsibility**, not a caption — one sentence saying what
+  the thing is answerable for.
+- **Relations carry `what_crosses`**, the data or control that actually moves.
+  It is the field prose most often omits and readers most often want.
+- **Boundaries carry a claim** about everything inside them. A box that only
+  groups is decoration, and the validator says so.
+- **Components carry a status.** `built` means it was seen in the code; `planned`
+  means the design names it and the code does not. A diagram that cannot tell you
+  which is which is a diagram you cannot plan from.
+- **Questions are the unit of a diagram.** One diagram per question, and the
+  question decides what is in it. Everything connected but out of scope is named
+  on the diagram's own card rather than vanishing.
 
 ## The worked example
 
@@ -143,6 +175,19 @@ error count stops reaching a new minimum, and reports whatever it could not fix.
 `dropped` line: components out of scope, a boundary drawn around only some of its
 members, a detail shortened. Source links are emitted only when there is a
 repository revision to verify them against.
+
+## Documentation
+
+- **[GUIDE.md](skills/archlens/docs/GUIDE.md)** — the walkthrough: build an
+  analysis piece by piece, run it, read the output, and a full field reference.
+- **[notes-app.analysis.json](skills/archlens/examples/notes-app.analysis.json)** —
+  a small invented example, six components and two questions, to copy from.
+- **[litestream.analysis.json](skills/archlens/examples/litestream.analysis.json)** —
+  a real one: [Litestream](https://github.com/benbjohnson/litestream) analysed at
+  a pinned commit, with source links verified against git.
+- **[analysis.schema.json](skills/archlens/schemas/analysis.schema.json)** — every
+  field, with the reasoning in its descriptions.
+- **[SKILL.md](skills/archlens/SKILL.md)** — what Claude reads.
 
 ## Layout of this repository
 

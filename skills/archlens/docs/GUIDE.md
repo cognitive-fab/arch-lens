@@ -14,6 +14,34 @@ had to drop. The rest of this page is about writing the input.
 
 ---
 
+## Letting Claude write it
+
+In any project with the skill installed, ask. Three shapes of request cover most
+of what people want:
+
+> map this architecture with archlens
+
+> using docs/02-architecture.md as the only source, write an archlens analysis and render it
+
+> /archlens how does the harness mount the gate?
+
+The first reads the code and maps the whole system. The second works from a
+document instead, so what the document names and the code does not gets marked
+`planned`. The third asks one question: a question is the unit of a diagram, so
+Claude writes the answer, the context and a narrative, and renders a single
+diagram for it — added to the project's existing analysis if there is one.
+Follow-ups work the same way:
+
+> add the retry path to the analysis and re-render
+
+Claude reads the sources, writes the analysis, runs validate and render, and
+reports the dropped lines. Review the analysis, not the diagrams: it is the file
+that carries the claims, and the diagrams follow it. The rest of this guide is
+what Claude is doing on your behalf, so you can write or correct the file
+yourself.
+
+---
+
 ## The shape of the work
 
 You write **one file**. It describes the system once. Diagrams and prose are both
@@ -243,17 +271,3 @@ gets its own card colour.
 
 **Length limits**, all enforced by the validator: `name` 40, `detail` 28,
 `summary` 34, question `title` 60, view `note` 140.
-
-## Letting Claude write it
-
-In any project with the skill installed:
-
-> map this architecture with archlens
-
-> using docs/02-architecture.md as the only source, write an archlens analysis and render it
-
-> add the retry path to the analysis and re-render
-
-Claude reads the sources, writes the analysis, runs validate and render, and
-reports the dropped lines. Review the analysis, not the diagrams: it is the file
-that carries the claims, and the diagrams follow it.
