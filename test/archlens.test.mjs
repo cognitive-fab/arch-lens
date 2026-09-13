@@ -845,3 +845,77 @@ if (hasPdftotext()) {
     rmSync(root, { recursive: true, force: true });
   });
 }
+
+// --- what the final review found ------------------------------------------------------
+
+test('an analysis with no relations validates, checks, asks, diffs and compiles without crashing', () => {
+  const doc = paper();
+  delete doc.relations;
+  assert.equal(validateAnalysis(doc).ok, true);
+  assert.doesNotThrow(() => compileQuestion(doc, 'q'));
+  assert.doesNotThrow(() => ask(doc, 'method'));
+  assert.doesNotThrow(() => review(doc, [{ path: 'x', status: 'M' }]));
+  assert.doesNotThrow(() => renderMarkdown(doc));
+  assert.equal(checkRulesAgainstModel(doc).length, 0);
+  doc.facts = [{ id: 'r', kind: 'constraint', claim: 'x', rule: { kind: 'no-relation', from: 'a', to: 'b' } }];
+  assert.equal(validateAnalysis(doc).ok, true, 'a ruled fact must not make the validator iterate a missing list');
+});
+
+test('a multi-line named import is read, with the line it starts on', () => {
+  const text = "const a = 1;\nimport {\n  x,\n  y,\n} from '../c/store.js';\nexport {\n  z\n} from './z';\n";
+  assert.deepEqual(importsIn(text, 'f.ts'), [{ spec: '../c/store.js', line: 2 }, { spec: './z', line: 6 }]);
+});
+
+test('a rule is enforced only on a constraint, as the warning says', () => {
+  const doc = ruled();
+  doc.facts[0].kind = 'risk';
+  doc.relations.push({ from: 'a', to: 'c', mechanism: 'database', summary: 'peeks', what_crosses: 'Rows.' });
+  const { ok, warnings } = validateAnalysis(doc);
+  assert.equal(ok, true, 'a rule on a risk is not enforced');
+  assert.match(warnings.map((w) => w.message).join('\n'), /only a constraint is enforced/);
+  assert.equal(checkRulesAgainstModel(doc).length, 0);
+});
+
+test('a rule the analysis breaks is tagged, so enforce can report it instead of being refused the file', () => {
+  const doc = ruled();
+  doc.relations.push({ from: 'a', to: 'c', mechanism: 'database', summary: 'peeks', what_crosses: 'Rows.' });
+  const { errors } = validateAnalysis(doc);
+  assert.deepEqual(errors.map((e) => e.code), ['rule-violation']);
+});
+
+test('a document that cannot be read is one unverified citation, not a crash', () => {
+  const root = mkdtempSync(join(tmpdir(), 'archlens-'));
+  mkdirSync(join(root, 'notes.md'));
+  writeFileSync(join(root, 'bad.pdf'), 'not a pdf');
+  const doc = paper();
+  doc.components[0].doc_refs = [{ path: 'notes.md', section: '§1' }, { path: 'bad.pdf', section: '§1' }];
+  const result = checkDocRefs(doc, root);
+  assert.equal(result.unverified.length, 2, 'a directory named like a text file, and a PDF that is not one');
+  assert.match(result.unverified[0].reason, /could not be read/);
+  assert.equal(result.ok, true, 'unverified is not wrong');
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('a removed component keeps the name the base analysis gave it', () => {
+  const base = ruled();
+  const head = ruled();
+  head.components = head.components.filter((c) => c.id !== 'c');
+  head.relations = head.relations.filter((r) => r.to !== 'c');
+  head.facts = [];
+  const text = renderDiff(diffAnalyses(base, head), base, head);
+  assert.match(text, /- B -> C: writes/, 'the relation names C, not "c"');
+});
+
+test('an alias in a list item is refused, and a list item with extra spaces after the dash is read', () => {
+  assert.throws(() => parseYaml('depends_on:\n  - *db\n'), /aliases/);
+  assert.deepEqual(parseYaml('items:\n  -   key: v\n      other: w\n'), { items: [{ key: 'v', other: 'w' }] });
+});
+
+test('a document link is written from where the page lives, and survives spaces and parentheses', () => {
+  assert.equal(docLink({ path: 'docs/paper.pdf', page: 3 }, '../..'), '../../docs/paper.pdf#page=3');
+  assert.equal(docLink({ path: 'my paper (v2).pdf', page: 1 }, '.'), './my%20paper%20%28v2%29.pdf#page=1');
+  const doc = paper();
+  doc.components[0].doc_refs = [{ path: 'docs/paper.pdf', section: '§1', page: 2 }];
+  assert.match(briefHtml(doc.questions[0], doc, index(doc), { docBase: '../..' }), /href="\.\.\/\.\.\/docs\/paper\.pdf#page=2"/);
+  assert.match(renderMarkdown(doc, { docBase: '..' }), /\]\(\.\.\/docs\/paper\.pdf#page=2\)/);
+});

@@ -71,7 +71,7 @@ export function review(analysis, changes, options = {}) {
   // Relations carry evidence too, and a change at a relation's cited lines is
   // a change to the edge itself, which is the thing most worth a second look.
   const relationsChanged = [];
-  for (const r of analysis.relations) {
+  for (const r of (analysis.relations ?? [])) {
     for (const e of r.evidence ?? []) {
       for (const change of changes) {
         const how = covers(e, change);
@@ -95,8 +95,8 @@ export function review(analysis, changes, options = {}) {
   // Relations between two touched components: the change may have altered what
   // crosses. Relations that leave a touched component for another boundary: the
   // change may have altered whether the boundary's claim still holds.
-  const relationsBetween = analysis.relations.filter((r) => touchedIds.has(r.from) && touchedIds.has(r.to));
-  const crossingsFrom = analysis.relations.filter((r) => r.crosses && (touchedIds.has(r.from) || touchedIds.has(r.to)) && !relationsBetween.includes(r));
+  const relationsBetween = (analysis.relations ?? []).filter((r) => touchedIds.has(r.from) && touchedIds.has(r.to));
+  const crossingsFrom = (analysis.relations ?? []).filter((r) => r.crosses && (touchedIds.has(r.from) || touchedIds.has(r.to)) && !relationsBetween.includes(r));
 
   // Facts attached to the questions the change lands in, guarantees and
   // constraints first: those are the claims a change can break.

@@ -16,7 +16,7 @@ import { docLink, docCite } from './docs.mjs';
 
 const STATUS_MARK = { built: '', partial: ' *(partial)*', planned: ' *(planned)*' };
 
-export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
+export function renderMarkdown(analysis, { diagrams = new Map(), docBase = '' } = {}) {
   const idx = index(analysis);
   const out = [];
   const w = (line = '') => out.push(line);
@@ -88,8 +88,8 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
         }
         const from = idx.components.get(step.from)?.name ?? step.from;
         const to = idx.components.get(step.to)?.name ?? step.to;
-        const relation = analysis.relations.find((r) => r.from === step.from && r.to === step.to)
-          ?? analysis.relations.find((r) => r.from === step.to && r.to === step.from);
+        const relation = (analysis.relations ?? []).find((r) => r.from === step.from && r.to === step.to)
+          ?? (analysis.relations ?? []).find((r) => r.from === step.to && r.to === step.from);
         const says = step.says ?? relation?.summary ?? '';
         const arrow = step.kind === 'return' ? '⇢' : '→';
         const carries = step.note ?? (step.kind !== 'return' ? relation?.what_crosses : null);
@@ -125,7 +125,7 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
       w();
       w('Contains: ' + b.contains.map((id) => idx.components.get(id)?.name ?? id).join(', ') + '.');
       w();
-      const crossings = analysis.relations.filter((r) => r.crosses === b.id);
+      const crossings = (analysis.relations ?? []).filter((r) => r.crosses === b.id);
       if (crossings.length) {
         w('Crossed by:');
         w();
@@ -160,7 +160,7 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
         bullets.push('Documented in: ' + c.doc_refs.map((d) => {
           const cite = docCite(d);
           const quote = d.quote ? ` — “${d.quote}”` : '';
-          return `[${d.path}${cite ? ` ${cite}` : ''}](${docLink(d)})${quote}`;
+          return `[${d.path}${cite ? ` ${cite}` : ''}](${docLink(d, docBase)})${quote}`;
         }).join('; '));
       }
       for (const note of c.notes ?? []) bullets.push(note);
@@ -174,7 +174,7 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
   w();
   w('| From | To | Mechanism | What crosses |');
   w('|---|---|---|---|');
-  for (const r of analysis.relations) {
+  for (const r of (analysis.relations ?? [])) {
     const from = idx.components.get(r.from)?.name ?? r.from;
     const to = idx.components.get(r.to)?.name ?? r.to;
     const crossing = r.crosses ? ` *(crosses ${idx.boundaries.get(r.crosses)?.label ?? r.crosses})*` : '';

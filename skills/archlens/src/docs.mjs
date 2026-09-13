@@ -27,7 +27,7 @@ export function docCitations(analysis) {
     for (const d of owner.doc_refs ?? []) out.push({ owner, kind, ref: d, what: kind === 'relation' ? `${owner.from} -> ${owner.to}` : owner.id });
   };
   for (const c of analysis.components) add(c, 'component');
-  for (const r of analysis.relations) add(r, 'relation');
+  for (const r of (analysis.relations ?? [])) add(r, 'relation');
   for (const b of analysis.boundaries ?? []) add(b, 'boundary');
   for (const f of analysis.facts ?? []) add(f, 'fact');
   return out;
@@ -50,18 +50,28 @@ export function hasPdftotext() {
 
 /**
  * The pages of a document, as text. One entry for a text file; one per page
- * for a PDF. Null when the document cannot be read here.
+ * for a PDF. When the document cannot be read here — no pdftotext, an
+ * encrypted or damaged PDF, a directory where a file was expected — the
+ * answer is a reason, so the citation is reported as unverified by name
+ * rather than taking the whole check down with it.
+ *
+ * @returns {{pages: string[]} | {reason: string}}
  */
 export function pagesOf(absPath) {
-  if (TEXT.test(absPath)) return [readFileSync(absPath, 'utf8')];
-  if (PDF.test(absPath)) {
-    if (!hasPdftotext()) return null;
-    const text = execFileSync('pdftotext', ['-layout', absPath, '-'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
-    const pages = text.split('\f');
-    if (pages.length > 1 && !pages[pages.length - 1].trim()) pages.pop();
-    return pages;
+  try {
+    if (TEXT.test(absPath)) return { pages: [readFileSync(absPath, 'utf8')] };
+    if (PDF.test(absPath)) {
+      if (!hasPdftotext()) return { reason: 'pdftotext is not installed' };
+      const text = execFileSync('pdftotext', ['-layout', absPath, '-'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+      const pages = text.split('\f');
+      if (pages.length > 1 && !pages[pages.length - 1].trim()) pages.pop();
+      return { pages };
+    }
+    return { reason: 'not a text or PDF document' };
+  } catch (error) {
+    const detail = (error.stderr ?? error.message ?? '').toString().trim().split('\n')[0];
+    return { reason: `could not be read: ${detail || error.code || 'unknown error'}` };
   }
-  return null;
 }
 
 const fold = (s) => String(s).toLowerCase().replace(/[‘’“”]/g, "'").replace(/[^a-z0-9]+/g, ' ').trim();
@@ -131,11 +141,12 @@ export function checkDocRefs(analysis, root) {
       gone.push({ ...entry, reason: 'not found' });
       continue;
     }
-    const pages = pagesFor(ref.path);
-    if (pages === null) {
-      unverified.push({ ...entry, reason: PDF.test(ref.path) ? 'pdftotext is not installed' : 'not a text or PDF document' });
+    const read = pagesFor(ref.path);
+    if (!read.pages) {
+      unverified.push({ ...entry, reason: read.reason });
       continue;
     }
+    const { pages } = read;
     let problem = false;
     if (ref.page && PDF.test(ref.path) && ref.page > pages.length) {
       gone.push({ ...entry, reason: `cites page ${ref.page} of ${pages.length}` });
@@ -202,10 +213,18 @@ export function renderDocCheck(result) {
   return `${out.join('\n')}\n`;
 }
 
-/** A link into the document, with a page anchor when there is one. */
-export function docLink(ref) {
+/**
+ * A link into the document, with a page anchor when there is one.
+ *
+ * `ref.path` is relative to the repository root, and the page that carries the
+ * link usually is not, so `base` is the way from that page's directory back to
+ * the root — the caller knows it; this does not. Spaces and parentheses are
+ * escaped so the link survives markdown as well as HTML.
+ */
+export function docLink(ref, base = '') {
   const anchor = ref.page ? `#page=${ref.page}` : '';
-  return `${ref.path}${anchor}`;
+  const joined = base ? `${base.replace(/\/+$/, '')}/${ref.path}` : ref.path;
+  return `${joined.replace(/ /g, '%20').replace(/\(/g, '%28').replace(/\)/g, '%29')}${anchor}`;
 }
 
 /** "§3.2, p. 12" — whatever the citation carries, in reading order. */

@@ -31,7 +31,7 @@ export function citations(analysis) {
     for (const e of list ?? []) out.push({ owner, kind, evidence: e });
   };
   for (const c of analysis.components) add(c, 'component', c.evidence);
-  for (const r of analysis.relations) add(r, 'relation', r.evidence);
+  for (const r of (analysis.relations ?? [])) add(r, 'relation', r.evidence);
   for (const b of analysis.boundaries ?? []) add(b, 'boundary', b.evidence);
   for (const f of analysis.facts ?? []) add(f, 'fact', f.evidence);
   return out;

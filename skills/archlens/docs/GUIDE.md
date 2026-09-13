@@ -235,7 +235,7 @@ question's `facts` and they become the cards beside that diagram.
 archlens validate  notes.analysis.json          # referential errors and thin spots
 archlens questions notes.analysis.json          # what each diagram would draw
 archlens render    notes.analysis.json docs/architecture --repo-root .
-archlens doc       notes.analysis.json ARCHITECTURE.md --diagrams docs/architecture
+archlens doc       notes.analysis.json ARCHITECTURE.md --diagrams docs/architecture --repo-root .
 archlens ask       notes.analysis.json "does the indexer ever write a note?"
 archlens review    notes.analysis.json --repo-root . --base main
 archlens seed      docker-compose.yml notes.analysis.json   # a draft, from what the repo states

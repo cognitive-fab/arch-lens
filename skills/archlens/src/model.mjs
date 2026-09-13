@@ -36,7 +36,7 @@ const SHAPES = new Set(['architecture', 'sequence']);
 const STEP_KINDS = new Set(['call', 'return', 'async']);
 
 /** A problem the caller can print. `where` is a JSON-ish path into the document. */
-const problem = (severity, where, message, fix) => ({ severity, where, message, ...(fix ? { fix } : {}) });
+const problem = (severity, where, message, fix, code) => ({ severity, where, message, ...(fix ? { fix } : {}), ...(code ? { code } : {}) });
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isStr = (v, min = 1, max = Infinity) => typeof v === 'string' && v.length >= min && v.length <= max;
@@ -226,7 +226,7 @@ export function validateAnalysis(doc) {
   if (errors.length === 0) {
     for (const v of checkRulesAgainstModel(doc)) {
       const i = doc.relations.indexOf(v.relation);
-      err(`relations[${i}]`, `the analysis ${v.message}`, `remove the relation, or change the rule on fact "${v.fact.id}"`);
+      err(`relations[${i}]`, `the analysis ${v.message}`, `remove the relation, or change the rule on fact "${v.fact.id}"`, 'rule-violation');
     }
   }
 

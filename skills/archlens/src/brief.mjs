@@ -83,7 +83,7 @@ export function citedFor(question, analysis, idx) {
 }
 
 /** The section, or '' when the analysis gave it nothing to say. */
-export function briefHtml(question, analysis, idx) {
+export function briefHtml(question, analysis, idx, { docBase = '' } = {}) {
   const glossary = glossaryFor(question, analysis, idx);
   const cited = citedFor(question, analysis, idx);
   const hasProse = Boolean(question.context || question.narrative);
@@ -117,7 +117,7 @@ export function briefHtml(question, analysis, idx) {
     for (const { component, ref } of cited) {
       const cite = docCite(ref);
       const quote = ref.quote ? ` <q>${esc(ref.quote)}</q>` : '';
-      out.push(`        <li><strong>${esc(component.name)}</strong> — <a href="${esc(docLink(ref))}">${esc(ref.path)}${cite ? ` ${esc(cite)}` : ''}</a>${quote}</li>`);
+      out.push(`        <li><strong>${esc(component.name)}</strong> — <a href="${esc(docLink(ref, docBase))}">${esc(ref.path)}${cite ? ` ${esc(cite)}` : ''}</a>${quote}</li>`);
     }
     out.push('      </ul>');
   }
@@ -250,8 +250,8 @@ const STYLE = `<style ${MARKER}>
  * browser check re-delivered the file cannot stack two copies. Returns false
  * when there was nothing to add, so the caller can stay quiet about it.
  */
-export function injectBrief(htmlPath, question, analysis, idx) {
-  const body = briefHtml(question, analysis, idx);
+export function injectBrief(htmlPath, question, analysis, idx, options = {}) {
+  const body = briefHtml(question, analysis, idx, options);
   if (!body) return false;
 
   let html = readFileSync(htmlPath, 'utf8');

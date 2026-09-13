@@ -65,12 +65,12 @@ export function checkRulesAgainstModel(analysis) {
   const idx = index(analysis);
   const out = [];
   for (const fact of analysis.facts ?? []) {
-    if (!fact.rule || ruleProblems(fact.rule, idx).length) continue;
+    if (fact.kind !== 'constraint' || !fact.rule || ruleProblems(fact.rule, idx).length) continue;
     const rule = fact.rule;
     if (rule.kind === 'no-relation') {
       const from = new Set(membersOf(idx, rule.from));
       const to = new Set(membersOf(idx, rule.to));
-      for (const r of analysis.relations) {
+      for (const r of (analysis.relations ?? [])) {
         if (from.has(r.from) && to.has(r.to)) {
           out.push({ fact, relation: r, message: `declares "${r.from}" -> "${r.to}", which the constraint "${fact.claim}" forbids` });
         }
@@ -78,7 +78,7 @@ export function checkRulesAgainstModel(analysis) {
     } else {
       const to = new Set(membersOf(idx, rule.to));
       const via = new Set(rule.via.flatMap((id) => membersOf(idx, id)));
-      for (const r of analysis.relations) {
+      for (const r of (analysis.relations ?? [])) {
         if (to.has(r.to) && !via.has(r.from) && !to.has(r.from)) {
           out.push({ fact, relation: r, message: `declares "${r.from}" -> "${r.to}", but the constraint "${fact.claim}" allows "${r.to}" to be reached only via ${rule.via.join(', ')}` });
         }
@@ -139,11 +139,13 @@ export function importsIn(text, path) {
     });
     return out;
   }
-  lines.forEach((l, i) => {
-    for (const m of l.matchAll(/\b(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]|\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
-      push(m[1] ?? m[2] ?? m[3] ?? m[4], i);
-    }
-  });
+  // A named import list runs across lines as often as not, so the statement is
+  // matched against the whole file and the line recovered from its offset.
+  const re = /\b(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]|\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+  for (const m of text.matchAll(re)) {
+    const line = text.slice(0, m.index).split('\n').length;
+    out.push({ spec: m[1] ?? m[2] ?? m[3] ?? m[4], line });
+  }
   return out;
 }
 
@@ -214,7 +216,7 @@ function ownerOf(path, owners) {
  */
 export function checkRulesAgainstCode(analysis, repoRoot) {
   const idx = index(analysis);
-  const rules = (analysis.facts ?? []).filter((f) => f.rule && !ruleProblems(f.rule, idx).length);
+  const rules = (analysis.facts ?? []).filter((f) => f.kind === 'constraint' && f.rule && !ruleProblems(f.rule, idx).length);
   const owners = [];
   for (const c of analysis.components) {
     for (const e of c.evidence ?? []) owners.push({ id: c.id, path: e.path.replace(/\/+$/, '') });
@@ -267,7 +269,7 @@ export function checkRulesAgainstCode(analysis, repoRoot) {
 
   // Edges the code has that the analysis does not declare are not a rule
   // violation, but they are the thing a rule is most often about to miss.
-  const declared = new Set(analysis.relations.map((r) => `${r.from}>${r.to}`));
+  const declared = new Set((analysis.relations ?? []).map((r) => `${r.from}>${r.to}`));
   const undeclared = [...edges].filter(([key]) => !declared.has(key)).map(([key, sites]) => ({ from: key.split('>')[0], to: key.split('>')[1], sites }));
 
   return { violations, undeclared, rules: rules.length, files: files.length, imports, unresolved };
@@ -279,7 +281,7 @@ export function renderEnforce(modelFindings, codeResult, analysis) {
   const out = [];
   const w = (line = '') => out.push(line);
 
-  const rules = (analysis.facts ?? []).filter((f) => f.rule);
+  const rules = (analysis.facts ?? []).filter((f) => f.kind === 'constraint' && f.rule);
   w(`rules    ${rules.length} checkable constraint(s)`);
   if (codeResult) w(`scanned  ${codeResult.files} source file(s), ${codeResult.imports} import(s) in cited code, ${codeResult.unresolved} not resolved`);
   w();

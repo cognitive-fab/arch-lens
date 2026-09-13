@@ -150,6 +150,7 @@ export function seedCompose(text, path, options = {}) {
  * @param {{name?: string}} [options]
  */
 export function seedWorkspaces(root, members, options = {}) {
+  const manifest = options.manifest ?? 'package.json';
   const byName = new Map(members.filter((m) => m.pkg?.name).map((m) => [m.pkg.name, m]));
   const components = members.filter((m) => m.pkg?.name).map((m) => {
     const p = m.pkg;
@@ -189,7 +190,7 @@ export function seedWorkspaces(root, members, options = {}) {
   return finish({
     name: options.name ?? root.name ?? 'Workspace',
     purpose: TODO('one sentence on what this workspace is for'),
-    source: { kind: 'code', ref: 'package.json', note: 'seeded by archlens seed from the workspace manifests; every TODO is a sentence nobody has written yet' },
+    source: { kind: 'code', ref: manifest, note: 'seeded by archlens seed from the workspace manifests; every TODO is a sentence nobody has written yet' },
     components,
     relations,
     boundaries: [],

@@ -67,7 +67,7 @@ function hits(questionTerms, text) {
 function weights(analysis, questionTerms) {
   const texts = [
     ...analysis.components.map((c) => [c.name, c.id, c.responsibility, c.detail, ...(c.notes ?? [])].filter(Boolean).join(' ')),
-    ...analysis.relations.map((r) => `${r.summary} ${r.what_crosses ?? ''}`),
+    ...(analysis.relations ?? []).map((r) => `${r.summary} ${r.what_crosses ?? ''}`),
     ...(analysis.facts ?? []).map((f) => `${f.claim} ${f.because ?? ''}`),
     ...analysis.questions.map((q) => [q.title, q.ask, q.answer, q.context, q.narrative].filter(Boolean).join(' ')),
     ...(analysis.boundaries ?? []).map((b) => `${b.label} ${b.claim}`),
@@ -125,7 +125,7 @@ export function ask(analysis, question) {
   // whose label may use neither word.
   const strongest = components[0]?.score ?? 0;
   const strongIds = new Set(components.filter((m) => m.score >= strongest / 2).map((m) => m.component.id));
-  const relations = analysis.relations.map((r) => {
+  const relations = (analysis.relations ?? []).map((r) => {
     const found = hits(qTerms, `${r.summary} ${r.what_crosses ?? ''} ${r.mechanism}`);
     const joins = matchedIds.has(r.from) && matchedIds.has(r.to);
     const touches = strongIds.has(r.from) || strongIds.has(r.to);

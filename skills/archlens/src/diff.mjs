@@ -100,8 +100,9 @@ export function diffAnalyses(base, head) {
 export function renderDiff(result, base, head) {
   const out = [];
   const w = (line = '') => out.push(line);
-  const nameIn = (analysis, id) => analysis.components.find((c) => c.id === id)?.name ?? id;
-  const name = (id) => nameIn(head, id) ?? nameIn(base, id);
+  // A removed component has a name only in the base analysis.
+  const nameIn = (analysis, id) => analysis.components.find((c) => c.id === id)?.name;
+  const name = (id) => nameIn(head, id) ?? nameIn(base, id) ?? id;
 
   if (result.revision.base || result.revision.head) {
     w(`revision ${(result.revision.base ?? '—').slice(0, 7)} -> ${(result.revision.head ?? '—').slice(0, 7)}`);

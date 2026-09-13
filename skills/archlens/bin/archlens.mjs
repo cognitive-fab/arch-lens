@@ -21,7 +21,7 @@ import { review, renderReview } from '../src/review.mjs';
 import { changesIn, existsIn } from '../src/git.mjs';
 import { seedCompose, seedWorkspaces } from '../src/seed.mjs';
 import { parseYaml } from '../src/yaml.mjs';
-import { checkDrift, renderDrift } from '../src/drift.mjs';
+import { checkDrift, renderDrift, citations } from '../src/drift.mjs';
 import { checkDocRefs, renderDocCheck, docCitations } from '../src/docs.mjs';
 import { diffAnalyses, renderDiff } from '../src/diff.mjs';
 import { checkRulesAgainstModel, checkRulesAgainstCode, renderEnforce } from '../src/rules.mjs';
@@ -39,8 +39,9 @@ const USAGE = `archlens — an architecture analysis, rendered
       Compile every question to an archify specification, repair it against the
       renderer's diagnostics, deliver the HTML, and check it in a browser.
 
-  archlens doc <analysis.json> [out.md] [--diagrams <dir>]
-      Render the analysis as a markdown architecture document.
+  archlens doc <analysis.json> [out.md] [--diagrams <dir>] [--repo-root <dir>]
+      Render the analysis as a markdown architecture document. --repo-root
+      makes document citations link correctly from where out.md lives.
 
   archlens ask <analysis.json> "<question>" [--json]
       Gather what the analysis says about a question — components, relations,
@@ -144,7 +145,7 @@ function cmdValidate() {
   say();
   say(`${result.errors.length} error(s), ${result.warnings.length} warning(s)`);
   if (!result.ok) process.exit(1);
-  say(`"${doc.system.name}": ${doc.components.length} components, ${doc.relations.length} relations, ${doc.questions.length} questions.`);
+  say(`"${doc.system.name}": ${doc.components.length} components, ${(doc.relations ?? []).length} relations, ${doc.questions.length} questions.`);
 }
 
 function cmdQuestions() {
@@ -187,6 +188,9 @@ function cmdRender() {
   const idx = index(analysis);
   const produced = new Map();
   let failures = 0;
+  // Document citations are repository-relative; the pages that link to them
+  // live in the output directory, so the links need the way back.
+  const docBase = docBaseFor(dir, repoRoot);
 
   for (const target of targets) {
     const type = target.spec.diagram_type;
@@ -251,7 +255,7 @@ function cmdRender() {
     }
 
     // After the check loop, never before: a re-delivery would overwrite it.
-    if (injectBrief(htmlPath, target.question, analysis, idx)) {
+    if (injectBrief(htmlPath, target.question, analysis, idx, { docBase })) {
       say('  brief    context, narrative and glossary added below the diagram');
     } else if (!target.question.context && !target.question.narrative) {
       say('  brief    none — the question has no context or narrative to add');
@@ -263,7 +267,7 @@ function cmdRender() {
   }
 
   const docPath = join(dir, 'README.md');
-  writeFileSync(docPath, renderMarkdown(analysis, { diagrams: produced }), 'utf8');
+  writeFileSync(docPath, renderMarkdown(analysis, { diagrams: produced, docBase }), 'utf8');
   say(`wrote    ${docPath}`);
   say(`${produced.size}/${targets.length} diagram(s) delivered.`);
   if (failures) process.exit(2);
@@ -280,8 +284,10 @@ function cmdDoc() {
       if (existsSync(join(resolve(diagramsDir), rel))) diagrams.set(q.id, rel);
     }
   }
-  const markdown = renderMarkdown(analysis, { diagrams });
   const out = positional[1];
+  const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : null;
+  const docBase = out ? docBaseFor(dirname(resolve(out)), repoRoot) : '';
+  const markdown = renderMarkdown(analysis, { diagrams, docBase });
   if (!out) return process.stdout.write(markdown);
   mkdirSync(dirname(resolve(out)), { recursive: true });
   writeFileSync(resolve(out), markdown, 'utf8');
@@ -361,21 +367,26 @@ function cmdSeed() {
   if (/compose.*\.ya?ml$/i.test(base) || /\.ya?ml$/i.test(base) && !/pnpm-workspace/.test(base)) {
     seeded = seedCompose(readFileSync(inputPath, 'utf8'), relative(inputPath), { name });
   } else if (base === 'package.json' || /pnpm-workspace\.ya?ml$/.test(base)) {
-    const rootPkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+    // The workspace is wherever the manifest is, which need not be the
+    // repository root; evidence paths are still written from the root.
+    const wsRoot = dirname(inputPath);
+    const rootPkgPath = join(wsRoot, 'package.json');
+    if (!existsSync(rootPkgPath)) fail(`no package.json beside ${input}`);
+    const rootPkg = JSON.parse(readFileSync(rootPkgPath, 'utf8'));
     let patterns = Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : rootPkg.workspaces?.packages ?? [];
     if (/pnpm-workspace/.test(base)) patterns = parseYaml(readFileSync(inputPath, 'utf8'))?.packages ?? [];
     if (!patterns.length) fail(`${input} declares no workspaces`);
     const members = [];
     for (const pattern of patterns) {
       if (String(pattern).startsWith('!')) continue;
-      for (const dir of expandWorkspace(repoRoot, String(pattern))) {
-        const pkgPath = join(repoRoot, dir, 'package.json');
+      for (const dir of expandWorkspace(wsRoot, String(pattern))) {
+        const pkgPath = join(wsRoot, dir, 'package.json');
         if (!existsSync(pkgPath)) continue;
-        members.push({ dir: rel(dir), pkg: JSON.parse(readFileSync(pkgPath, 'utf8')) });
+        members.push({ dir: relative(join(wsRoot, dir)), pkg: JSON.parse(readFileSync(pkgPath, 'utf8')) });
       }
     }
     if (!members.length) fail('no workspace package.json files found under the declared patterns');
-    seeded = seedWorkspaces(rootPkg, members, { name });
+    seeded = seedWorkspaces(rootPkg, members, { name, manifest: relative(rootPkgPath) });
   } else {
     fail(`do not know how to seed from "${base}": expected a compose file, package.json, or pnpm-workspace.yaml`);
   }
@@ -435,7 +446,7 @@ function cmdCheck() {
   const { analysis } = readAnalysis();
   const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : null;
   if (!repoRoot) fail('--repo-root is required: the evidence and the documents are resolved there');
-  const hasCode = analysis.components.some((c) => c.evidence?.length) || analysis.system.repository;
+  const hasCode = citations(analysis).length > 0 || Boolean(analysis.system.repository);
   const hasDocs = docCitations(analysis).length > 0;
   const drift = hasCode ? checkDrift(analysis, repoRoot) : null;
   const docs = hasDocs ? checkDocRefs(analysis, repoRoot) : null;
@@ -501,7 +512,16 @@ function cmdCompare() {
 }
 
 function cmdEnforce() {
-  const { analysis } = readAnalysis();
+  // A rule the analysis breaks is a validation error, and enforce is the
+  // command that reports it, so it must not be refused the file on that count.
+  const path = positional[0];
+  if (!path) fail('an analysis file is required');
+  const analysis = JSON.parse(readFileSync(resolve(path), 'utf8'));
+  const validation = validateAnalysis(analysis);
+  const other = validation.errors.filter((e) => e.code !== 'rule-violation');
+  if (other.length) {
+    fail(`analysis "${path}" is not valid:\n${other.map((e) => `  - ${e.where}: ${e.message}`).join('\n')}`);
+  }
   const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : null;
   const model = checkRulesAgainstModel(analysis);
   const code = repoRoot ? checkRulesAgainstCode(analysis, repoRoot) : null;
@@ -516,6 +536,13 @@ function cmdEnforce() {
   }
   process.stdout.write(renderEnforce(model, code, analysis));
   if (model.length || code?.violations.length) process.exit(1);
+}
+
+/** The relative way from an output directory back to the repository root, or '' when unknown. */
+function docBaseFor(outDir, repoRoot) {
+  if (!repoRoot) return '';
+  const r = relativePath(outDir, repoRoot).replace(/\\/g, '/');
+  return r === '' ? '.' : r;
 }
 
 function cmdDoctor() {

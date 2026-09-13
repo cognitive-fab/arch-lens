@@ -64,7 +64,7 @@ export function compileSequence(analysis, question) {
   // What the question touches but does not involve, for the card. The same rule
   // as an architecture: nothing vanishes without being named.
   const outside = new Set();
-  for (const r of analysis.relations) {
+  for (const r of (analysis.relations ?? [])) {
     const a = inScope.has(r.from);
     const b = inScope.has(r.to);
     if (a !== b) outside.add(a ? r.to : r.from);
@@ -107,7 +107,7 @@ export function compileSequence(analysis, question) {
   });
   closePhase(ys[ys.length - 1]);
 
-  const relationOf = (from, to) => analysis.relations.find((r) => r.from === from && r.to === to);
+  const relationOf = (from, to) => (analysis.relations ?? []).find((r) => r.from === from && r.to === to);
   const messages = steps.map((step, i) => {
     const relation = relationOf(step.from, step.to) ?? relationOf(step.to, step.from);
     const spec = {

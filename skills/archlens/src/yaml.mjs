@@ -24,7 +24,7 @@ export function parseYaml(text) {
       return;
     }
     if (/^\.\.\.(\s|$)/.test(line)) throw new Error(`line ${i + 1}: multi-document YAML is not supported`);
-    if (/^\s*[&*]/.test(line) || /:\s*[&*]\w/.test(line)) throw new Error(`line ${i + 1}: YAML anchors and aliases are not supported`);
+    if (/^\s*[&*]/.test(line) || /:\s*[&*]\w/.test(line) || /^\s*-\s+[&*]\w/.test(line)) throw new Error(`line ${i + 1}: YAML anchors and aliases are not supported`);
     if (/(?::|^\s*-)\s*[|>][-+]?\s*$/.test(line)) throw new Error(`line ${i + 1}: block scalars are not supported`);
     lines.push({ n: i + 1, indent: line.match(/^ */)[0].length, text: line.trim() });
   });
@@ -114,8 +114,9 @@ function parseList(lines, at, indent) {
       i = next;
     } else if (!/^[[{]/.test(rest) && /^("[^"]*"|'[^']*'|[^:#]+?)\s*:(?:\s+.*)?$/.test(rest)) {
       // "- key: value" opens a mapping whose remaining keys are indented to
-      // line up with the key. Re-present the first pair as a line at that indent.
-      const inner = indent + 2;
+      // line up with the key — wherever the key starts, since "-   key" with
+      // extra spaces is valid. Re-present the first pair as a line at that indent.
+      const inner = indent + (text.length - rest.length);
       const first = { n, indent: inner, text: rest };
       const spliced = [first, ...lines.slice(i + 1)];
       const [value, consumed] = parseMap(spliced, 0, inner);

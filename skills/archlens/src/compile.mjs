@@ -117,7 +117,7 @@ export function compileQuestion(analysis, questionId, options = {}) {
   // scope either vanish or become an edge to "elsewhere" — never silently.
   const drawn = [];
   const outside = new Set();
-  for (const r of analysis.relations) {
+  for (const r of (analysis.relations ?? [])) {
     const a = inScope.has(r.from);
     const b = inScope.has(r.to);
     if (a && b) drawn.push(r);
@@ -128,7 +128,7 @@ export function compileQuestion(analysis, questionId, options = {}) {
   if (usesElsewhere) {
     const names = [...outside].map((id) => idx.components.get(id)?.name ?? id);
     dropped.push(`collapsed into "elsewhere": ${names.join(', ')}`);
-    for (const r of analysis.relations) {
+    for (const r of (analysis.relations ?? [])) {
       const a = inScope.has(r.from);
       const b = inScope.has(r.to);
       if (a === b) continue;
