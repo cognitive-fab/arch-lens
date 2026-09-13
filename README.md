@@ -138,8 +138,22 @@ questions:
 | Keeping it running and keeping it small | What stops the history growing forever, or two processes fighting over one bucket? |
 
 Litestream was chosen because its architecture is mostly an argument about what
-crosses a boundary, which is the part a diagram usually loses. To reproduce it,
-clone Litestream anywhere and point the renderer at it:
+crosses a boundary, which is the part a diagram usually loses. Two of the four,
+as rendered:
+
+![How a change reaches the destination — the DB reads committed pages from the write-ahead log and hands them to a replica, which pushes them to the destination](docs/images/litestream-write.png)
+
+The first question. The commit never waits: every edge that touches SQLite's
+files is a read, and the only writes go to the off-host destination.
+
+![Why replicating cannot corrupt the database — the only path into the database is through SQLite's own API, taking the write lock in a table inside the database itself](docs/images/litestream-safety.png)
+
+The second. Same components, narrower question, so the destination side drops
+off and `_litestream_lock` appears — the guarantee is on the card, not left to
+the reader to infer from arrows. Every diagram is an interactive HTML page with
+source links, guided views and a dark theme; these are its automated browser-check
+screenshots. To reproduce them, clone Litestream anywhere and point the renderer
+at it:
 
 ```sh
 git clone https://github.com/benbjohnson/litestream /tmp/litestream
@@ -148,7 +162,9 @@ archlens render skills/archlens/examples/litestream.analysis.json /tmp/out \
 ```
 
 All four diagrams pass nine artifact checks with zero errors, contain at four
-viewports in light and dark, and carry source links verified against git.
+viewports in light and dark, and carry source links verified against git. The
+render writes the screenshots above beside each HTML file, as
+`*.visual-check.<viewport>.<theme>.png`.
 
 ## What it does for you
 
