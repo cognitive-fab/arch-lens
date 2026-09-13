@@ -1,12 +1,20 @@
 {
   "name": "archlens",
-  "version": "0.1.0",
-  "description": "Write the architecture analysis; the diagrams compile from it. Requires the archify renderer.",
+  "version": "0.1.1",
+  "description": "Turn a codebase or an architecture document into a structured, evidence-carrying analysis, then compile that analysis into validated interactive diagrams and a matching markdown document. Ask \"map this architecture with archlens\", point it at a design document as the only source, or ask one question with /archlens <question> to get a single diagram that answers it. One diagram per question, source links verified against git, and everything the picture had to drop reported rather than hidden. Requires the archify renderer (npx skills add tt-a1i/archify -g).",
   "author": {
     "name": "Cognitive Fab"
   },
   "homepage": "https://github.com/cognitive-fab/arch-lens",
   "repository": "https://github.com/cognitive-fab/arch-lens",
   "license": "MIT",
-  "keywords": ["architecture", "diagrams", "documentation"]
+  "keywords": [
+    "architecture",
+    "diagrams",
+    "documentation",
+    "analysis",
+    "c4",
+    "system-design",
+    "archify"
+  ]
 }
