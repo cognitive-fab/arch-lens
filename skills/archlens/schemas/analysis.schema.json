@@ -320,6 +320,9 @@
           },
           "evidence": {
             "$ref": "#/$defs/evidenceList"
+          },
+          "doc_refs": {
+            "$ref": "#/$defs/docRefList"
           }
         }
       }
@@ -533,6 +536,9 @@
                 }
               }
             ]
+          },
+          "doc_refs": {
+            "$ref": "#/$defs/docRefList"
           }
         }
       }
@@ -668,10 +674,17 @@
           },
           "quote": {
             "type": "string",
-            "maxLength": 240
+            "maxLength": 240,
+            "description": "A verbatim excerpt, at most 240 characters. `check` confirms it is in the document, and on the cited page."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based page, for PDFs. Rendered as a #page= anchor and checked against the document."
           }
         }
-      }
+      },
+      "description": "Where in a document this was read. `section` goes on the node (\"§3.2\"); `page` makes the link open at the page; `quote` is a short verbatim excerpt that `check` looks for, and the strongest form of citation a document allows."
     }
   }
 }

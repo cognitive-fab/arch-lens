@@ -268,7 +268,29 @@ resolve is counted rather than guessed.
 was added, removed or changed among components, relations, boundaries, facts
 and questions, and which components went from `planned` to `built`. With an
 output directory it also renders archify's visual comparison for every
-architecture question both analyses ask.
+architecture question both analyses ask. This works for two papers as well as
+two revisions of one codebase: analyse each with shared component ids for the
+things they have in common, and the difference is what one paper has that the
+other lacks.
+
+### Documents as the subject
+
+When `system.domain` is `document`, evidence is `doc_refs` rather than
+`evidence`. Each entry cites a `path` (relative to the root you give `check`),
+and as much of `section`, `page` and `quote` as you can:
+
+```json
+"doc_refs": [{ "path": "paper.pdf", "section": "§3.2", "page": 6,
+               "quote": "we remove the aligner and lose 1.2 BLEU" }]
+```
+
+`check --repo-root <dir>` then confirms each one against the document: the
+file exists; the quote is in it, and on the cited page; the section heading is
+found (by number — `§3.2`, `3.2` — or by words). Text and markdown are read
+directly; PDFs need `pdftotext` (poppler), and without it a PDF citation is
+reported as unverified rather than assumed. The generated markdown links each
+citation to `paper.pdf#page=6`, and the rendered page lists the question's
+citations under "Cited".
 
 `seed` drafts an analysis from something the repository already states, with
 evidence attached: a compose file (services, images, `depends_on`, networks as

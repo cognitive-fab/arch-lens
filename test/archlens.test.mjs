@@ -26,6 +26,9 @@ import { parseYaml } from '../skills/archlens/src/yaml.mjs';
 import { checkDrift, renderDrift } from '../skills/archlens/src/drift.mjs';
 import { diffAnalyses, renderDiff } from '../skills/archlens/src/diff.mjs';
 import { checkRulesAgainstModel, checkRulesAgainstCode, importsIn, resolveImport, renderEnforce } from '../skills/archlens/src/rules.mjs';
+import { checkDocRefs, findQuote, findSection, renderDocCheck, hasPdftotext, docLink } from '../skills/archlens/src/docs.mjs';
+import { citedFor } from '../skills/archlens/src/brief.mjs';
+import { writePdf } from './fixtures/mkpdf.mjs';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -751,3 +754,94 @@ test('imports are read from JavaScript, Python and Go, and resolved to files in 
   assert.match(renderEnforce([], result, doc), /does not declare/, 'a -> c is an edge the analysis never declared');
   rmSync(root, { recursive: true, force: true });
 });
+
+// --- citations into documents ----------------------------------------------------
+
+test('a quote is found across folded whitespace, punctuation and page breaks', () => {
+  const pages = ['Intro.\nThe encoder reads\n  sentence pairs', ' and emits alignments.\n3.2 Ablation\nRemoving it costs 1.2 BLEU.'];
+  assert.equal(findQuote(pages, 'encoder reads sentence pairs'), 1);
+  assert.equal(findQuote(pages, 'sentence pairs and emits'), 1, 'straddling a page break counts, on the first page');
+  assert.equal(findQuote(pages, 'removing it costs 1.2 bleu'), 2);
+  assert.equal(findQuote(pages, 'the decoder'), 0);
+});
+
+test('a section is found by number, by heading words, or by words anywhere, in that order', () => {
+  const pages = ['# Notes\n\n## 2 Method\n\ntext', '3.2 Ablation\nmore\nRelated work is cited here.'];
+  assert.equal(findSection(pages, '§2'), 1);
+  assert.equal(findSection(pages, '3.2'), 2);
+  assert.equal(findSection(pages, '3.2 Ablation'), 2);
+  assert.equal(findSection(pages, 'Method'), 1, 'a heading line');
+  assert.equal(findSection(pages, 'Related work'), 2, 'words in running text, as a last resort');
+  assert.equal(findSection(pages, '§7'), 0);
+});
+
+test('document citations are checked: gone, wrong, mispaged, unverified, confirmed', () => {
+  const root = mkdtempSync(join(tmpdir(), 'archlens-'));
+  writeFileSync(join(root, 'notes.md'), '# Notes\n\n## 2 Method\n\nThe encoder reads sentence pairs.\n');
+  writeFileSync(join(root, 'scan.docx'), 'binary');
+  const doc = paper();
+  doc.components[0].doc_refs = [
+    { path: 'notes.md', section: '§2', quote: 'reads sentence pairs' },
+    { path: 'notes.md', section: 'Conclusion' },
+    { path: 'notes.md', quote: 'the decoder' },
+    { path: 'gone.md', section: '§1' },
+    { path: 'scan.docx', section: '§1' },
+  ];
+  const result = checkDocRefs(doc, root);
+  assert.equal(result.fine, 1);
+  assert.deepEqual(result.gone.map((g) => g.path), ['gone.md']);
+  assert.deepEqual(result.missing.map((m) => m.reason), ['section "Conclusion" not found', 'quote not found: "the decoder"']);
+  assert.deepEqual(result.unverified.map((u) => u.reason), ['not a text or PDF document']);
+  assert.equal(result.ok, false);
+  assert.match(renderDocCheck(result), /1 confirmed, 1 unverified, 2 wrong, 1 gone/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('a doc_ref with nothing checkable warns, and one that escapes the root is an error', () => {
+  const doc = paper();
+  doc.components[0].doc_refs = [{ path: 'paper.pdf' }];
+  const { ok, warnings } = validateAnalysis(doc);
+  assert.equal(ok, true);
+  assert.match(warnings.map((w) => w.message).join('\n'), /names no section, page or quote/);
+  doc.components[0].doc_refs = [{ path: '../paper.pdf', section: '§1' }];
+  assert.equal(validateAnalysis(doc).ok, false);
+});
+
+test('the document link opens at the cited page, and the brief lists what a paper question cites', () => {
+  assert.equal(docLink({ path: 'paper.pdf', page: 12 }), 'paper.pdf#page=12');
+  assert.equal(docLink({ path: 'notes.md', section: '§2' }), 'notes.md');
+  const doc = paper();
+  doc.components[0].doc_refs = [{ path: 'paper.pdf', section: '§3.1', page: 4, quote: 'the thing' }];
+  const cited = citedFor(doc.questions[0], doc, index(doc));
+  assert.equal(cited.length, 1);
+  const html = briefHtml(doc.questions[0], doc, index(doc));
+  assert.match(html, /<h3>Cited<\/h3>/);
+  assert.match(html, /href="paper\.pdf#page=4">paper\.pdf §3\.1, p\. 4<\/a> <q>the thing<\/q>/);
+  const code = minimal();
+  code.components[0].doc_refs = [{ path: 'DESIGN.md', section: 'Overview' }];
+  assert.deepEqual(citedFor(code.questions[0], code, index(code)), [], 'a code subject keeps its source links; the brief does not double up');
+});
+
+test('the markdown links a citation to its page and carries the quote', () => {
+  const doc = paper();
+  doc.components[0].doc_refs = [{ path: 'paper.pdf', section: '§3.1', page: 4, quote: 'the thing' }];
+  assert.match(renderMarkdown(doc), /\[paper\.pdf §3\.1, p\. 4\]\(paper\.pdf#page=4\) — “the thing”/);
+});
+
+if (hasPdftotext()) {
+  test('a PDF is read page by page through pdftotext, so a quote can be held to its page', () => {
+    const root = mkdtempSync(join(tmpdir(), 'archlens-'));
+    writePdf(root);
+    const doc = paper();
+    doc.components[0].doc_refs = [
+      { path: 'paper.pdf', section: '§2', page: 1, quote: 'The encoder reads sentence pairs' },
+      { path: 'paper.pdf', section: '3.2', page: 1 },
+      { path: 'paper.pdf', page: 9 },
+    ];
+    const result = checkDocRefs(doc, root);
+    assert.equal(result.fine, 1);
+    assert.deepEqual(result.mispaged.map((m) => [m.claimed, m.found]), [[1, 2]]);
+    assert.deepEqual(result.gone.map((g) => g.reason), ['cites page 9 of 2']);
+    rmSync(root, { recursive: true, force: true });
+  });
+}

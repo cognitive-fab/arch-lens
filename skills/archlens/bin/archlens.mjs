@@ -22,6 +22,7 @@ import { changesIn, existsIn } from '../src/git.mjs';
 import { seedCompose, seedWorkspaces } from '../src/seed.mjs';
 import { parseYaml } from '../src/yaml.mjs';
 import { checkDrift, renderDrift } from '../src/drift.mjs';
+import { checkDocRefs, renderDocCheck, docCitations } from '../src/docs.mjs';
 import { diffAnalyses, renderDiff } from '../src/diff.mjs';
 import { checkRulesAgainstModel, checkRulesAgainstCode, renderEnforce } from '../src/rules.mjs';
 
@@ -60,10 +61,12 @@ const USAGE = `archlens — an architecture analysis, rendered
       about until it is written.
 
   archlens check <analysis.json> --repo-root <dir> [--json]
-      Is the analysis still true of the code? Re-resolve every evidence
+      Is the analysis still true of its sources? Re-resolve every evidence
       reference against the working tree and, when the pinned revision is
-      available, report what changed since it. Exits 1 when a citation points
-      at nothing — the check to run in CI.
+      available, report what changed since it. Document citations (doc_refs)
+      are checked against the documents: the file, the section, the quote and
+      the page it claims (PDFs through pdftotext). Exits 1 when a citation
+      points at nothing — the check to run in CI.
 
   archlens compare <base.analysis.json> <head.analysis.json> [out-dir] [--repo-root <dir>]
       What changed between two analyses: components, relations, boundaries,
@@ -431,14 +434,24 @@ function gitRootOf(dir) {
 function cmdCheck() {
   const { analysis } = readAnalysis();
   const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : null;
-  if (!repoRoot) fail('--repo-root is required: the evidence is resolved there');
-  const result = checkDrift(analysis, repoRoot);
+  if (!repoRoot) fail('--repo-root is required: the evidence and the documents are resolved there');
+  const hasCode = analysis.components.some((c) => c.evidence?.length) || analysis.system.repository;
+  const hasDocs = docCitations(analysis).length > 0;
+  const drift = hasCode ? checkDrift(analysis, repoRoot) : null;
+  const docs = hasDocs ? checkDocRefs(analysis, repoRoot) : null;
   if (has('json')) {
-    const strip = (list) => list.map(({ owner, evidence, ...rest }) => ({ ...rest, line: evidence.line, end_line: evidence.end_line }));
-    return say(JSON.stringify({ ...result, gone: strip(result.gone), moved: strip(result.moved), built: strip(result.built) }, null, 2));
+    const strip = (list) => list.map(({ owner, evidence, ...rest }) => ({ ...rest, line: evidence?.line, end_line: evidence?.end_line }));
+    const stripDoc = (list) => list.map(({ owner, ref, ...rest }) => ({ ...rest, section: ref.section, page: ref.page, quote: ref.quote }));
+    return say(JSON.stringify({
+      code: drift && { ...drift, gone: strip(drift.gone), moved: strip(drift.moved), built: strip(drift.built) },
+      documents: docs && { ...docs, gone: stripDoc(docs.gone), unverified: stripDoc(docs.unverified), missing: stripDoc(docs.missing), mispaged: stripDoc(docs.mispaged) },
+    }, null, 2));
   }
-  process.stdout.write(renderDrift(result));
-  if (!result.ok) process.exit(1);
+  if (drift) process.stdout.write(renderDrift(drift));
+  if (drift && docs) say();
+  if (docs) process.stdout.write(renderDocCheck(docs));
+  if (!drift && !docs) say('nothing to check: the analysis carries no evidence and no doc_refs');
+  if ((drift && !drift.ok) || (docs && !docs.ok)) process.exit(1);
 }
 
 function cmdCompare() {

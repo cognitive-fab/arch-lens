@@ -15,6 +15,7 @@
 // without knowing anything about it.
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { docLink, docCite } from './docs.mjs';
 
 const MARKER = 'data-archlens-brief';
 
@@ -66,11 +67,27 @@ export function glossaryFor(question, analysis, idx) {
   });
 }
 
+/**
+ * What a document subject cites, per component the question draws. The diagram
+ * has no source links for a paper — archify's are repository evidence — so this
+ * is where the reader gets the page.
+ */
+export function citedFor(question, analysis, idx) {
+  if (analysis.system.domain !== 'document') return [];
+  const out = [];
+  for (const id of question.involves ?? []) {
+    const c = idx?.components?.get(id);
+    for (const d of c?.doc_refs ?? []) out.push({ component: c, ref: d });
+  }
+  return out;
+}
+
 /** The section, or '' when the analysis gave it nothing to say. */
 export function briefHtml(question, analysis, idx) {
   const glossary = glossaryFor(question, analysis, idx);
+  const cited = citedFor(question, analysis, idx);
   const hasProse = Boolean(question.context || question.narrative);
-  if (!hasProse && !glossary.length) return '';
+  if (!hasProse && !glossary.length && !cited.length) return '';
 
   const out = [];
   out.push(`<section ${MARKER} aria-labelledby="archlens-brief-title" hidden>`);
@@ -92,6 +109,17 @@ export function briefHtml(question, analysis, idx) {
     out.push('      <div class="archlens-narrative">');
     for (const p of paras(question.narrative)) out.push(`        <p>${esc(p)}</p>`);
     out.push('      </div>');
+  }
+
+  if (cited.length) {
+    out.push('      <h3>Cited</h3>');
+    out.push('      <ul class="archlens-cited">');
+    for (const { component, ref } of cited) {
+      const cite = docCite(ref);
+      const quote = ref.quote ? ` <q>${esc(ref.quote)}</q>` : '';
+      out.push(`        <li><strong>${esc(component.name)}</strong> — <a href="${esc(docLink(ref))}">${esc(ref.path)}${cite ? ` ${esc(cite)}` : ''}</a>${quote}</li>`);
+    }
+    out.push('      </ul>');
   }
   out.push('    </div>');
 
@@ -203,6 +231,9 @@ const STYLE = `<style ${MARKER}>
     padding-left: 16px;
   }
   section[${MARKER}] .archlens-glossary { margin: 0; }
+  section[${MARKER}] .archlens-cited { margin: 0; padding-left: 1.2em; }
+  section[${MARKER}] .archlens-cited li { margin: 0 0 6px; }
+  section[${MARKER}] .archlens-cited q { opacity: 0.8; }
   section[${MARKER}] .archlens-glossary dt {
     font-weight: 600; margin-top: 14px;
   }

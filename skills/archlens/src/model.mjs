@@ -110,6 +110,7 @@ export function validateAnalysis(doc) {
         'split it, or accept that the diagram will under-describe it');
     }
     validateEvidence(c.evidence, `${at}.evidence`, err);
+    validateDocRefs(c.doc_refs, `${at}.doc_refs`, err, warn);
   });
 
   const known = (id) => byId.has(id);
@@ -180,6 +181,7 @@ export function validateAnalysis(doc) {
     if (seenEdge.has(key)) warn(at, `duplicate relation "${key}" — the renderer will draw two edges between the same pair`);
     seenEdge.add(key);
     validateEvidence(r.evidence, `${at}.evidence`, err);
+    validateDocRefs(r.doc_refs, `${at}.doc_refs`, err, warn);
   });
 
   // A boundary crossing that nobody declared is the most common quiet error.
@@ -209,6 +211,7 @@ export function validateAnalysis(doc) {
       if (!FACT_KINDS.has(f.kind)) err(`${at}.kind`, `unknown fact kind ${JSON.stringify(f.kind)}`);
       if (!isStr(f.claim)) err(`${at}.claim`, 'claim is required');
       validateEvidence(f.evidence, `${at}.evidence`, err);
+      validateDocRefs(f.doc_refs, `${at}.doc_refs`, err, warn);
       if (f.rule !== undefined) {
         if (f.kind !== 'constraint') warn(`${at}.rule`, `fact "${f.id}" carries a rule but is a ${f.kind}; only a constraint is enforced`);
         for (const p of ruleProblems(f.rule, { components: byId, boundaries: new Map((doc.boundaries ?? []).map((b) => [b?.id, b])) })) {
@@ -311,6 +314,28 @@ function validateShape(q, at, relations, err, warn) {
   if (q.steps.length > 14) {
     warn(`${at}.steps`, `sequence "${q.id}" has ${q.steps.length} steps; past about 14 the labels fall below the readable floor`, 'split the question');
   }
+}
+
+/**
+ * A document citation is held to the same standard as code evidence: a path
+ * that stays inside the root, and something in it a checker can look for.
+ */
+function validateDocRefs(list, at, err, warn) {
+  if (list === undefined) return;
+  if (!Array.isArray(list)) return err(at, 'doc_refs must be an array');
+  list.forEach((d, i) => {
+    if (!isObject(d)) return err(`${at}[${i}]`, 'doc_refs entry must be an object');
+    if (!isStr(d.path, 1, 240)) err(`${at}[${i}].path`, 'doc_refs.path is required');
+    if (d.path && (d.path.startsWith('/') || d.path.includes('\\') || d.path.includes('..'))) {
+      err(`${at}[${i}].path`, `document path "${d.path}" must be relative with forward slashes and no ".."`);
+    }
+    if (d.page !== undefined && (!Number.isInteger(d.page) || d.page < 1)) err(`${at}[${i}].page`, 'page must be a positive integer');
+    if (d.quote !== undefined && !isStr(d.quote, 1, 240)) err(`${at}[${i}].quote`, 'quote must be at most 240 characters');
+    if (!d.section && !d.quote && !d.page) {
+      warn(`${at}[${i}]`, `the citation of "${d.path}" names no section, page or quote, so nothing in it can be checked`,
+        'add a quote — the strongest citation a document allows — or at least a section');
+    }
+  });
 }
 
 function validateEvidence(list, at, err) {

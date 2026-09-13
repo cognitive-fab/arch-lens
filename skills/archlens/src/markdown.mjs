@@ -12,6 +12,7 @@
 
 import { index } from './model.mjs';
 import { glossaryFor } from './brief.mjs';
+import { docLink, docCite } from './docs.mjs';
 
 const STATUS_MARK = { built: '', partial: ' *(partial)*', planned: ' *(planned)*' };
 
@@ -156,7 +157,11 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
         bullets.push('Source: ' + c.evidence.map((e) => `\`${e.path}${e.line ? `:${e.line}` : ''}\``).join(', '));
       }
       if (c.doc_refs?.length) {
-        bullets.push('Documented in: ' + c.doc_refs.map((d) => `\`${d.path}\`${d.section ? ` ${d.section}` : ''}`).join(', '));
+        bullets.push('Documented in: ' + c.doc_refs.map((d) => {
+          const cite = docCite(d);
+          const quote = d.quote ? ` — “${d.quote}”` : '';
+          return `[${d.path}${cite ? ` ${cite}` : ''}](${docLink(d)})${quote}`;
+        }).join('; '));
       }
       for (const note of c.notes ?? []) bullets.push(note);
       for (const b of bullets) w(`- ${b}`);

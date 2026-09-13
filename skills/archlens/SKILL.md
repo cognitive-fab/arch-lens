@@ -3,7 +3,7 @@ name: archlens
 description: Analyse a system's architecture into a structured, evidence-carrying model, then render that model as a set of validated interactive diagrams and a matching markdown document. Use when asked to map, diagram, document or explain the architecture of a codebase or design; to produce architecture diagrams that stay honest about what exists versus what is only designed; or to keep an architecture document and its diagrams from disagreeing. Prefer this over drawing a diagram directly.
 license: MIT
 metadata:
-  version: "0.4.0"
+  version: "0.5.0"
 ---
 
 # Archlens
@@ -220,6 +220,23 @@ line to resolve, so a component's `doc_refs` section is carried on the node
 itself — `§3.2` under the box, beside the status mark when there is one. Give
 `doc_refs` a `section` for every component you want cited; the first one is what
 the diagram has room for, and the rest survive in the generated document.
+
+A citation into a document can still be checked, and should be written so it
+can be. Three fields, strongest first: `quote`, a short verbatim excerpt;
+`page`, for a PDF, which also makes every rendered link open at that page;
+`section`. `check --repo-root <dir>` resolves each one against the document
+itself — text and markdown directly, PDFs through `pdftotext` when it is
+installed — and reports a quote that is not there, a quote on a different page
+than cited, a section it cannot find, or a file that is gone. Write the quote
+while the page is in front of you; a citation with none of the three is
+warned about because nothing in it can be checked. The rendered page lists
+every citation for a document subject under "Cited", with its page link, since
+the diagram itself has no source badges for a paper.
+
+Two readings of two papers can be compared with `compare` when their
+components share ids — give the method, the data and the prior work the same
+ids in both analyses, and the report says what one paper has that the other
+does not.
 
 **Write the prose the diagram cannot hold.** A node has room for two words and a
 card for three short lines, which is enough for a reader who already knows the

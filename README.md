@@ -85,7 +85,8 @@ quietly become the document.
 
 > check the architecture analysis against HEAD
 
-`archlens check` re-resolves every citation and lists what changed since the
+`archlens check` re-resolves every citation — code evidence against git,
+document citations against the documents — and lists what changed since the
 pinned revision; `archlens enforce` checks every ruled constraint against the
 code's imports. Both exit non-zero on a finding, so they belong in CI.
 `archlens compare` says what moved between two analyses, and draws it.
@@ -178,6 +179,10 @@ So the analysis is the artifact:
 - **A question chooses its shape.** "What are the parts" is an architecture.
   "What happens when" is a sequence, drawn from the same components and relations
   with the order added — a step the model has no relation for is refused.
+- **A document is cited the way code is.** For a paper or a specification,
+  `doc_refs` carry a section, a page and a quote; `check` confirms each one
+  against the document itself — PDFs through `pdftotext` — and every rendered
+  link opens at the page.
 - **A constraint can carry a rule.** "Nothing downstream reaches back into the
   database" becomes `only-via` or `no-relation` over components and boundaries,
   refused by the validator when the analysis's own relations break it and
@@ -349,6 +354,7 @@ skills/archlens/               the plugin's skill, self-contained
   src/drift.mjs                is the analysis still true of the code?
   src/diff.mjs                 what changed between two analyses
   src/rules.mjs                constraints a machine can check, against the model and the code
+  src/docs.mjs                 citations into documents, checked against the documents
   src/yaml.mjs                 enough YAML to read a compose file
   src/repair.mjs               the diagnostic-driven repair loop
   src/markdown.mjs             the same analysis, as prose
@@ -358,6 +364,7 @@ skills/archlens/               the plugin's skill, self-contained
   examples/                    one invented, one real
 scripts/install-skill.mjs      installs the skill folder into each agent
 test/                          the tests, over what can be wrong quietly
+  fixtures/mkpdf.mjs           a two-page PDF, written by hand, for the document check
 ```
 
 ## Status
