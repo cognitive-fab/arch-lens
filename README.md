@@ -146,14 +146,70 @@ as rendered:
 The first question. The commit never waits: every edge that touches SQLite's
 files is a read, and the only writes go to the off-host destination.
 
+That is what the diagram can hold. Below it — on the HTML page and in the
+generated markdown — comes the prose the same analysis carries for this
+question: a `context` that says why the question matters, a `narrative` that
+walks the picture for a newcomer, and the `glossary` terms the question actually
+uses. From the generated document, lightly trimmed:
+
+> **What happens between a committed transaction and an object in storage?**
+>
+> Most backup tools copy a file on a schedule, which means a crash loses
+> everything since the last copy. Litestream promises something closer to
+> continuous: every committed transaction reaches object storage within about a
+> second. The tension is that SQLite is a library inside your process, not a
+> server Litestream can subscribe to, so it has to find out about changes from
+> the outside without slowing the application down.
+>
+> #### The long read
+>
+> Start at the bottom left, with the two files that belong to SQLite. Your
+> application writes to the SQLite database through SQLite's normal API. In
+> write-ahead-log mode, SQLite does not change the database file on each commit;
+> it appends the changed pages to a separate write-ahead log and only later
+> folds them back into the main file in a step called a checkpoint. That log is
+> the only thing Litestream watches.
+>
+> DB is Litestream's view of one database. Once a second it looks at the log,
+> and when it sees frames past the last position it recorded, it reads them.
+> These are pages SQLite has already committed, so DB is never reading a
+> half-finished transaction. It packs the frames for a range of transactions
+> into a transaction file — an LTX file — and hands it to the Replica. […]
+>
+> The thing to hold on to is what is not on the diagram: a path from the commit
+> to the destination. Your application's commit returns as soon as SQLite has
+> written the log. Everything Litestream does happens afterwards, on its own
+> clock. If the destination is slow or unreachable, transaction files queue
+> locally and the application does not notice. That is a deliberate trade — the
+> last second of writes can be lost — in exchange for replication that cannot
+> make your application wait.
+>
+> #### Terms used here
+>
+> - **write-ahead log** — A file SQLite appends committed pages to instead of
+>   changing the database file immediately. Readers see a consistent database;
+>   the changes are folded into the main file later by a checkpoint.
+> - **checkpoint** — The step in which SQLite copies pages from the write-ahead
+>   log back into the database file and can then truncate the log. Litestream
+>   asks for checkpoints through SQLite's API; it never does the copying itself.
+> - **transaction file** — Litestream's unit of replication: the committed pages
+>   for a contiguous range of transactions, encoded in its own format. Level 0
+>   holds one per sync; compaction merges them into larger ones.
+
+The glossary is written once, at the top level of the analysis; each question
+shows only the terms found in its own prose and components, so the twelve-term
+Litestream glossary costs this diagram five lines.
+
 ![Why replicating cannot corrupt the database — the only path into the database is through SQLite's own API, taking the write lock in a table inside the database itself](docs/images/litestream-safety.png)
 
 The second. Same components, narrower question, so the destination side drops
 off and `_litestream_lock` appears — the guarantee is on the card, not left to
-the reader to infer from arrows. Every diagram is an interactive HTML page with
-source links, guided views and a dark theme; these are its automated browser-check
-screenshots. To reproduce them, clone Litestream anywhere and point the renderer
-at it:
+the reader to infer from arrows, and its narrative is where the rolled-back lock
+transaction and the PASSIVE-versus-TRUNCATE checkpoint modes get explained.
+Every diagram is an interactive HTML page with source links, guided views and a
+dark theme; these are its automated browser-check screenshots, which capture the
+top of the page. To reproduce them, clone Litestream anywhere and point the
+renderer at it:
 
 ```sh
 git clone https://github.com/benbjohnson/litestream /tmp/litestream

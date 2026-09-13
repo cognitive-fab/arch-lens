@@ -414,7 +414,9 @@
         "not-in-write-path",
         "sqlite-api"
       ],
-      "omits": "Restore, compaction, and the control socket. Each is its own question."
+      "omits": "Restore, compaction, and the control socket. Each is its own question.",
+      "context": "Most backup tools copy a file on a schedule, which means a crash loses everything since the last copy. Litestream promises something closer to continuous: every committed transaction reaches object storage within about a second. The tension is that SQLite is a library inside your process, not a server Litestream can subscribe to, so it has to find out about changes from the outside without slowing the application down.",
+      "narrative": "Start at the bottom left, with the two files that belong to SQLite. Your application writes to the SQLite database through SQLite's normal API. In write-ahead-log mode, SQLite does not change the database file on each commit; it appends the changed pages to a separate write-ahead log and only later folds them back into the main file in a step called a checkpoint. That log is the only thing Litestream watches.\n\nDB is Litestream's view of one database. Once a second it looks at the log, and when it sees frames past the last position it recorded, it reads them. These are pages SQLite has already committed, so DB is never reading a half-finished transaction. It packs the frames for a range of transactions into a transaction file — an LTX file — and hands it to the Replica. DB is also the component that decides when SQLite should checkpoint, because a checkpoint truncates the log Litestream is reading from, and it has to be sure it has read everything first.\n\nThe Replica runs its own loop on a one-second interval. It takes whatever transaction files DB has produced since its last sync and pushes them through the Replica client, which speaks whichever destination protocol was configured. The Destination sees plain objects: files put, listed and occasionally fetched back. It never sees SQL, and nothing at the destination can reach back into your database.\n\nThe thing to hold on to is what is not on the diagram: a path from the commit to the destination. Your application's commit returns as soon as SQLite has written the log. Everything Litestream does happens afterwards, on its own clock. If the destination is slow or unreachable, transaction files queue locally and the application does not notice. That is a deliberate trade — the last second of writes can be lost — in exchange for replication that cannot make your application wait."
     },
     {
       "id": "safety",
@@ -436,7 +438,9 @@
         "sqlite-api",
         "lock-table"
       ],
-      "omits": "Everything past the replica. Nothing downstream can reach back into the database."
+      "omits": "Everything past the replica. Nothing downstream can reach back into the database.",
+      "context": "A background process reading a database another program is writing to is the classic way to corrupt it. Litestream runs exactly that way, on production databases, and its central claim is that it cannot damage them. The claim is worth understanding precisely, because it comes from what Litestream refuses to do rather than from anything clever it does.",
+      "narrative": "The two purple boxes are SQLite's files: the database itself and its write-ahead log. Every arrow from DB into that region is a read, or a call into SQLite's own API. Litestream never opens either file for writing. It reads committed frames from the log, and when it wants a checkpoint it asks SQLite to do one with a PRAGMA, the same call your application could make. SQLite keeps its own locks and its own consistency rules throughout; Litestream is just another client.\n\nThe third purple box is the one people find surprising. Litestream needs to stop other writers briefly while it checkpoints, and the only way to do that safely is to take SQLite's write lock the way any writer would: by starting a transaction. So it creates a table in your database, _litestream_lock, and begins a write transaction against it. The transaction is always rolled back, so no row is ever committed and your data never changes; the table only exists to give the lock somewhere to live. It is the one visible mark Litestream leaves inside your database, and it travels with the database if you copy or restore it.\n\nThe checkpoint modes matter here too. Litestream uses PASSIVE checkpoints almost always, which never block your application and simply give up if a reader is in the way. Only if the log grows past a large threshold does it use a blocking TRUNCATE checkpoint, as a last resort against unbounded growth.\n\nFollow the arrows out of the region and they all lead to the Replica and onward, never back. The destination is downstream of everything. Nothing that happens there — a failed upload, a corrupted object, a bucket someone deleted — has a path back into your database, which is why a broken replica costs you recovery, never availability."
     },
     {
       "id": "restore",
@@ -458,7 +462,9 @@
         "levels-not-rewrites",
         "recovery-not-availability"
       ],
-      "omits": "The live replication path, which is not running during a restore."
+      "omits": "The live replication path, which is not running during a restore.",
+      "context": "Replication is only worth anything if the copy can be turned back into a database. Litestream's restore rebuilds a database on a machine that has never seen it, from the objects in the destination alone. The question is what those objects have to contain, and what the rebuild does and does not need from the original host.",
+      "narrative": "Nothing on this diagram is running the replication loop. The machine it ran on is assumed gone, and the litestream CLI is started fresh somewhere else with a restore command. It talks to the Replica client, which is the same component the running process used, pointed at the same destination.\n\nThe client asks the Destination for two kinds of object. First, the most recent snapshot: a complete copy of the database as it was at some transaction. Snapshots are taken daily by default and live at the highest compaction level. Second, every transaction file recorded after that snapshot, which must form a contiguous run — each file's first transaction is the one after the previous file's last. A gap means the restore stops at the gap, because replaying past missing transactions would produce a database SQLite never had.\n\nThe CLI writes the snapshot to a new path, then applies the transaction files in order, page by page. The output path must not already exist; Litestream will not overwrite a database as part of a restore. What comes out is an ordinary SQLite file, including the _litestream_lock table, ready to be opened by your application or by a new Litestream process.\n\nThe Read-replica VFS is the other way to read what is in the destination. Built with a separate build tag, it lets SQLite open a database whose pages are fetched from the destination on demand, with no local file at all. It is not a restore — nothing is written locally — but it answers the same question in a different way: everything needed to read the database is in the bucket."
     },
     {
       "id": "operations",
@@ -482,7 +488,82 @@
         "levels-not-rewrites",
         "single-writer"
       ],
-      "omits": "How a transaction file is produced in the first place."
+      "omits": "How a transaction file is produced in the first place.",
+      "context": "A system that records every transaction forever will eventually cost more to store than the database it protects, and a system that lets two processes replicate to one destination will eventually produce a history neither of them can read. Both are operational problems rather than replication problems, and Litestream handles them with two components that sit beside the main path rather than on it.",
+      "narrative": "The litestream CLI starts the long-running process and hands the Store the list of databases and destinations from the configuration. The Store owns every registered database. It ticks each DB on a monitor interval and, separately, schedules compaction, rate-limiting how many run at once so a host with many databases is not overwhelmed. The Control socket lets an operator add, enable or stop a database in the running process over a Unix socket, so a configuration change does not require a restart.\n\nThe Compactor is what keeps the destination small. Level 0 holds the raw transaction files exactly as the replica uploaded them, one per sync. On a schedule — thirty seconds for level 1, five minutes for level 2, an hour for level 3 by default — the compactor reads the files at one level back from the destination, merges them into fewer, larger files at the next level, and writes those. Level 9 holds full snapshots. Once a level has been merged upward and is older than the retention window, the compactor deletes it. The history is never rewritten in place; it is copied up a level and then expired.\n\nThe Leaser answers the second problem. Before a process writes to a destination it acquires a lease object there, with an owner and an expiry, and renews it while it runs. A second process pointed at the same destination finds the lease held and refuses to replicate rather than interleaving its files with the first one's. If the first process dies, the lease expires and the next one can take over.\n\nBoth components talk only to the Replica client and the Destination. Neither touches the database, which is why they can be as aggressive as they need to be about the remote history without any of the care the replication path takes about the local one."
+    }
+  ],
+  "glossary": [
+    {
+      "term": "write-ahead log",
+      "also": [
+        "WAL",
+        "the log"
+      ],
+      "definition": "A file SQLite appends committed pages to instead of changing the database file immediately. Readers see a consistent database; the changes are folded into the main file later by a checkpoint."
+    },
+    {
+      "term": "checkpoint",
+      "definition": "The step in which SQLite copies pages from the write-ahead log back into the database file and can then truncate the log. Litestream asks for checkpoints through SQLite's API; it never does the copying itself."
+    },
+    {
+      "term": "transaction file",
+      "also": [
+        "LTX",
+        "LTX file"
+      ],
+      "definition": "Litestream's unit of replication: the committed pages for a contiguous range of transactions, encoded in its own format. Level 0 holds one per sync; compaction merges them into larger ones."
+    },
+    {
+      "term": "snapshot",
+      "definition": "A complete copy of the database at one transaction, stored at the highest compaction level. A restore starts from the most recent snapshot and replays transaction files after it."
+    },
+    {
+      "term": "compaction level",
+      "also": [
+        "level"
+      ],
+      "definition": "One tier of the remote history. Each level merges the files of the level below on a longer interval, so recent history is fine-grained and old history is a few large files."
+    },
+    {
+      "term": "retention",
+      "definition": "How long transaction files at a level are kept after they have been merged upward. Twenty-four hours by default."
+    },
+    {
+      "term": "lease",
+      "definition": "An object written to the destination that names the process currently allowed to replicate there and when its claim expires. A second process that finds one held refuses to start."
+    },
+    {
+      "term": "replica",
+      "definition": "In Litestream, the component that syncs one database's transaction files to one destination — not the copy at the destination itself."
+    },
+    {
+      "term": "_litestream_lock",
+      "also": [
+        "lock table"
+      ],
+      "definition": "A table Litestream creates in your database so it can take SQLite's write lock by opening a transaction against it. The transaction is always rolled back; the table never holds data."
+    },
+    {
+      "term": "PASSIVE checkpoint",
+      "also": [
+        "passive checkpoint"
+      ],
+      "definition": "A checkpoint mode that never blocks other connections and gives up if a reader is in the way. Litestream's normal mode."
+    },
+    {
+      "term": "TRUNCATE checkpoint",
+      "also": [
+        "truncate checkpoint"
+      ],
+      "definition": "A blocking checkpoint mode that waits for readers, then resets the log to zero length. Litestream uses it only when the log has grown past a large threshold."
+    },
+    {
+      "term": "read-replica VFS",
+      "also": [
+        "VFS"
+      ],
+      "definition": "An optional SQLite virtual file system that serves pages straight from the destination, so a database can be read on a machine that holds no copy of it."
     }
   ]
 }
