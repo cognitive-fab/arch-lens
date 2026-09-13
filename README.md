@@ -72,6 +72,15 @@ renders a single diagram for it — an architecture, or a sequence when the
 question is about an order of events. If the project already has an analysis,
 the question is added to it and the new diagram joins the existing set.
 
+**Start from what the repository already states.**
+
+> seed an archlens analysis from docker-compose.yml, then fill it in from the code
+
+`archlens seed` drafts the components, evidence and declared relations from a
+compose file or a JavaScript workspace, and writes `TODO` where every sentence
+goes. The validator warns on each TODO until it is replaced, so a draft cannot
+quietly become the document.
+
 **Review a change against it.**
 
 > review this branch against the architecture
@@ -114,6 +123,7 @@ archlens render    system.analysis.json docs/architecture --repo-root .
 archlens doc       system.analysis.json ARCHITECTURE.md
 archlens ask       system.analysis.json "does X ever talk to Y?"
 archlens review    system.analysis.json --repo-root . --base main
+archlens seed      docker-compose.yml system.analysis.json
 ```
 
 `validate` checks references and warns when the analysis is too thin to be worth
@@ -126,7 +136,8 @@ calls no model, and exits non-zero when the analysis does not cover the
 question, so nothing downstream is tempted to guess. `review` reads a git
 change against the analysis: which components its files are evidence for,
 which boundary claims and relations to re-check, and which changed files have
-no component at all.
+no component at all. `seed` drafts an analysis from a compose file or a
+workspace manifest, evidence attached, every missing sentence a `TODO`.
 
 [GUIDE.md](skills/archlens/docs/GUIDE.md) walks through building an analysis
 piece by piece and has the full field reference.
@@ -318,6 +329,8 @@ skills/archlens/               the plugin's skill, self-contained
   src/ask.mjs                  what the analysis says near a question, and what it never mentions
   src/review.mjs               a change, read against the analysis
   src/git.mjs                  the change, as git tells it
+  src/seed.mjs                 a draft analysis from a compose file or a workspace
+  src/yaml.mjs                 enough YAML to read a compose file
   src/repair.mjs               the diagnostic-driven repair loop
   src/markdown.mjs             the same analysis, as prose
   src/archify.mjs              where archify is, and how to run it

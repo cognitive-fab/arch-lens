@@ -66,6 +66,7 @@ export function validateAnalysis(doc) {
   } else {
     if (!isStr(sys.name)) err('system.name', 'system.name is required');
     if (!isStr(sys.purpose)) err('system.purpose', 'system.purpose is required');
+    else if (/^TODO\b/.test(sys.purpose)) warn('system.purpose', 'system.purpose is still the seed\'s TODO');
     if (sys.repository) {
       const r = sys.repository;
       if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?\/?$/.test(r.url || '')) {
@@ -98,6 +99,10 @@ export function validateAnalysis(doc) {
     if (!isStr(c.responsibility)) err(`${at}.responsibility`, 'responsibility is required — one sentence saying what this component is answerable for');
     if (c.detail !== undefined && !isStr(c.detail, 1, 28)) err(`${at}.detail`, 'detail must be at most 28 characters');
     if (c.status !== undefined && !STATUSES.has(c.status)) err(`${at}.status`, `status must be built, partial or planned`);
+    if (/^TODO\b/.test(c.responsibility ?? '')) {
+      warn(`${at}.responsibility`, `"${c.name}" still has the seed's TODO for a responsibility`,
+        'replace it with one sentence saying what the component is answerable for');
+    }
     const conjunctions = (c.responsibility?.match(/ and /g) || []).length;
     if (conjunctions >= 2 || (c.responsibility && c.responsibility.length > 160)) {
       warn(`${at}.responsibility`, `"${c.name}" reads as more than one responsibility, which usually means it is more than one component`,
@@ -141,6 +146,8 @@ export function validateAnalysis(doc) {
       if (!isStr(b.claim)) {
         err(`${at}.claim`, `boundary "${b.id}" makes no claim`,
           'say what is true of everything inside and not outside; a box that only groups is decoration');
+      } else if (/^TODO\b/.test(b.claim)) {
+        warn(`${at}.claim`, `boundary "${b.id}" still has the seed's TODO for a claim`);
       }
       if (!Array.isArray(b.contains) || b.contains.length === 0) err(`${at}.contains`, 'contains must list at least one component');
       else b.contains.forEach((id, j) => {
@@ -230,6 +237,7 @@ export function validateAnalysis(doc) {
     for (const id of q.highlight || []) if (!known(id)) err(`${at}.highlight`, `unknown component "${id}"`);
     for (const id of q.facts || []) if (!factIds.has(id)) err(`${at}.facts`, `unknown fact "${id}"`);
     if (!q.answer) warn(`${at}.answer`, `question "${q.id}" has no answer, so its diagram will lead with nothing`);
+    else if (/^TODO\b/.test(q.answer)) warn(`${at}.answer`, `question "${q.id}" still has the seed's TODO for an answer`);
     validateShape(q, at, relations, err, warn);
   });
 

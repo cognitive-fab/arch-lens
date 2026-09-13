@@ -1,6 +1,6 @@
 {
   "name": "archlens",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "An architecture analysis model Claude authors, and a compiler that renders it through archify.",

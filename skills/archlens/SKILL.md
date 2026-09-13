@@ -3,7 +3,7 @@ name: archlens
 description: Analyse a system's architecture into a structured, evidence-carrying model, then render that model as a set of validated interactive diagrams and a matching markdown document. Use when asked to map, diagram, document or explain the architecture of a codebase or design; to produce architecture diagrams that stay honest about what exists versus what is only designed; or to keep an architecture document and its diagrams from disagreeing. Prefer this over drawing a diagram directly.
 license: MIT
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # Archlens
@@ -21,6 +21,22 @@ analysis is the artifact and the diagram is a projection of it.
    one; read the code when the diagram must reflect what actually exists. Record
    what you read in `system.sources` — an analysis that cannot say where it came
    from is an opinion.
+
+   When the repository states its own parts — a compose file, a JavaScript
+   workspace — start from that rather than from reading:
+
+   ```bash
+   node bin/archlens.mjs seed docker-compose.yml <name>.analysis.json
+   node bin/archlens.mjs seed package.json <name>.analysis.json     # workspaces
+   ```
+
+   The seed writes the components with evidence, the relations the file
+   declares, and a `TODO` wherever a sentence is needed: every responsibility,
+   the purpose, each boundary claim, the first answer. It guesses nothing
+   else — a mechanism inferred from the target's kind is noted as a guess,
+   and `what_crosses` is left for you. Then read the code to replace every
+   TODO; `validate` warns on each one until you do, and a seeded analysis is
+   not finished while any remains.
 2. **Write `<name>.analysis.json`** against `schemas/analysis.schema.json`. This
    is the whole job. Everything below is about doing it honestly.
 3. **Check it**, and fix what it tells you:

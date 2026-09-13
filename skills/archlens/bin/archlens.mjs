@@ -5,7 +5,7 @@
 // what it did, because a diagram that quietly dropped a boundary is worse than
 // one that failed.
 
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { loadAnalysis, validateAnalysis, index } from '../src/model.mjs';
@@ -18,6 +18,8 @@ import { injectBrief } from '../src/brief.mjs';
 import { ask, renderAsk } from '../src/ask.mjs';
 import { review, renderReview } from '../src/review.mjs';
 import { changesIn, existsIn } from '../src/git.mjs';
+import { seedCompose, seedWorkspaces } from '../src/seed.mjs';
+import { parseYaml } from '../src/yaml.mjs';
 
 const USAGE = `archlens — an architecture analysis, rendered
 
@@ -45,6 +47,13 @@ const USAGE = `archlens — an architecture analysis, rendered
       evidence for, which boundaries it spans and what they claim, which
       relations and diagrams to re-check, and which changed files the analysis
       has no component for. Without --base, the working tree against HEAD.
+
+  archlens seed <compose.yml | package.json | pnpm-workspace.yaml> [out.analysis.json]
+                                            [--name <system name>] [--repo-root <dir>]
+      Draft an analysis from what the repository already states: compose
+      services and what each waits for, or workspace packages and what each
+      imports. Every responsibility is a TODO the validator will keep warning
+      about until it is written.
 
   archlens doctor
       Report where archify was found and whether it runs.
@@ -80,6 +89,7 @@ async function main() {
     case 'doc': return cmdDoc();
     case 'ask': return cmdAsk();
     case 'review': return cmdReview();
+    case 'seed': return cmdSeed();
     case 'doctor': return cmdDoctor();
     case '--help': case '-h': case undefined: return say(USAGE);
     default: return fail(`unknown command "${command}"\n\n${USAGE}`);
@@ -299,6 +309,70 @@ function cmdReview() {
   process.stdout.write(renderReview(result));
   // Exit 2: the analysis now cites something that is not there.
   if (result.gone.length) process.exit(2);
+}
+
+function cmdSeed() {
+  const input = positional[0];
+  if (!input) fail('an input file is required: a compose file, a package.json with workspaces, or pnpm-workspace.yaml');
+  const inputPath = resolve(input);
+  const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : dirname(inputPath);
+  const rel = (p) => p.replace(/\\/g, '/');
+  const relative = (abs) => rel(abs.slice(repoRoot.length + 1));
+  const base = input.split(/[\\/]/).pop();
+  const name = flag('name') ?? undefined;
+
+  let seeded;
+  if (/compose.*\.ya?ml$/i.test(base) || /\.ya?ml$/i.test(base) && !/pnpm-workspace/.test(base)) {
+    seeded = seedCompose(readFileSync(inputPath, 'utf8'), relative(inputPath), { name });
+  } else if (base === 'package.json' || /pnpm-workspace\.ya?ml$/.test(base)) {
+    const rootPkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+    let patterns = Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : rootPkg.workspaces?.packages ?? [];
+    if (/pnpm-workspace/.test(base)) patterns = parseYaml(readFileSync(inputPath, 'utf8'))?.packages ?? [];
+    if (!patterns.length) fail(`${input} declares no workspaces`);
+    const members = [];
+    for (const pattern of patterns) {
+      if (String(pattern).startsWith('!')) continue;
+      for (const dir of expandWorkspace(repoRoot, String(pattern))) {
+        const pkgPath = join(repoRoot, dir, 'package.json');
+        if (!existsSync(pkgPath)) continue;
+        members.push({ dir: rel(dir), pkg: JSON.parse(readFileSync(pkgPath, 'utf8')) });
+      }
+    }
+    if (!members.length) fail('no workspace package.json files found under the declared patterns');
+    seeded = seedWorkspaces(rootPkg, members, { name });
+  } else {
+    fail(`do not know how to seed from "${base}": expected a compose file, package.json, or pnpm-workspace.yaml`);
+  }
+
+  const { analysis, notes } = seeded;
+  const out = positional[1];
+  // With no output path the analysis goes to stdout, so the commentary must not.
+  const tell = out ? say : (line) => process.stderr.write(`${line}
+`);
+  for (const n of notes) tell(`note     ${n}`);
+  const result = validateAnalysis(analysis);
+  for (const e of result.errors) tell(`error    ${e.where}: ${e.message}`);
+  const todos = result.warnings.filter((w) => /TODO/.test(w.message)).length;
+  tell(`seeded   ${analysis.components.length} components, ${analysis.relations.length} relations, ${(analysis.boundaries ?? []).length} boundaries, ${analysis.questions.length} question(s)`);
+  tell(`todo     ${todos} sentence(s) to write before this is an analysis; validate will list them`);
+  const json = `${JSON.stringify(analysis, null, 2)}\n`;
+  if (!out) return process.stdout.write(json);
+  mkdirSync(dirname(resolve(out)), { recursive: true });
+  writeFileSync(resolve(out), json, 'utf8');
+  say(`wrote    ${resolve(out)}`);
+}
+
+/** `packages/*` and friends: one level of star, or a literal directory. */
+function expandWorkspace(repoRoot, pattern) {
+  const clean = pattern.replace(/\/+$/, '').replace(/\/\*\*$/, '/*');
+  if (!clean.includes('*')) return existsSync(join(repoRoot, clean)) ? [clean] : [];
+  const [head] = clean.split('*');
+  const parent = head.replace(/\/+$/, '');
+  const dir = join(repoRoot, parent);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.startsWith('.') && d.name !== 'node_modules')
+    .map((d) => `${parent}/${d.name}`);
 }
 
 function cmdDoctor() {

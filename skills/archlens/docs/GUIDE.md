@@ -238,8 +238,19 @@ archlens render    notes.analysis.json docs/architecture --repo-root .
 archlens doc       notes.analysis.json ARCHITECTURE.md --diagrams docs/architecture
 archlens ask       notes.analysis.json "does the indexer ever write a note?"
 archlens review    notes.analysis.json --repo-root . --base main
+archlens seed      docker-compose.yml notes.analysis.json   # a draft, from what the repo states
 archlens doctor                                 # where archify was found
 ```
+
+`seed` drafts an analysis from something the repository already states, with
+evidence attached: a compose file (services, images, `depends_on`, networks as
+boundaries) or a JavaScript workspace (`package.json` with `workspaces`, or
+`pnpm-workspace.yaml`; packages, and which imports which). Every sentence it
+cannot know — the purpose, each responsibility, each boundary claim, the first
+answer — is written as `TODO: …`, and `validate` warns on every one until it is
+replaced. A mechanism guessed from the target's kind is reported as a guess.
+The draft renders, which is a useful first look, but it is not an analysis
+until the TODOs are gone.
 
 `review` reads a change against the analysis. It maps the changed files to the
 components they are evidence for (a cited directory covers what is under it; a

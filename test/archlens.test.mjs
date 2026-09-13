@@ -21,6 +21,8 @@ import { briefHtml, glossaryFor } from '../skills/archlens/src/brief.mjs';
 import { ask, renderAsk } from '../skills/archlens/src/ask.mjs';
 import { review, renderReview } from '../skills/archlens/src/review.mjs';
 import { hunksOf } from '../skills/archlens/src/git.mjs';
+import { seedCompose, seedWorkspaces } from '../skills/archlens/src/seed.mjs';
+import { parseYaml } from '../skills/archlens/src/yaml.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const example = JSON.parse(readFileSync(join(here, '..', 'skills', 'archlens', 'examples', 'litestream.analysis.json'), 'utf8'));
@@ -495,4 +497,73 @@ test('a change spanning two boundaries lists both claims', () => {
 test('hunk headers become new-side line ranges', () => {
   const diff = '@@ -1,3 +1,4 @@\nfoo\n@@ -10 +11,0 @@\nbar\n@@ -20,2 +22 @@\n';
   assert.deepEqual(hunksOf(diff), [[1, 4], [11, 11], [22, 22]]);
+});
+
+// --- seeding ---------------------------------------------------------------------
+
+const COMPOSE = `
+services:
+  web:
+    build: .
+    depends_on: [api]   # flow list
+    networks: [front]
+  api:
+    image: ghcr.io/acme/api:2
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [front, back]
+  db:
+    image: postgres:16
+    networks: [back]
+networks:
+  front:
+  back:
+`;
+
+test('the YAML subset reads block and flow collections, comments and quotes', () => {
+  const doc = parseYaml('a: "x # not a comment"  # comment\nb:\n  - 1\n  - k: v\n    j: w\nc: [p, "q"]\nd: {e: f}\n');
+  assert.deepEqual(doc, { a: 'x # not a comment', b: [1, { k: 'v', j: 'w' }], c: ['p', 'q'], d: { e: 'f' } });
+});
+
+test('the YAML subset refuses what it does not read, by name', () => {
+  assert.throws(() => parseYaml('a: &x 1\nb: *x\n'), /anchors/);
+  assert.throws(() => parseYaml('a: |\n  text\n'), /block scalars/);
+});
+
+test('a compose file seeds components with evidence, kinds from images, and relations from depends_on', () => {
+  const { analysis, notes } = seedCompose(COMPOSE, 'docker-compose.yml');
+  assert.deepEqual(analysis.components.map((c) => [c.id, c.kind]), [['web', 'service'], ['api', 'service'], ['db', 'store']]);
+  assert.deepEqual(analysis.relations.map((r) => [r.from, r.to, r.mechanism]), [['web', 'api', 'http'], ['api', 'db', 'database']]);
+  assert.equal(analysis.components[2].evidence[0].path, 'docker-compose.yml');
+  assert.match(notes.join('\n'), /mechanism guessed/);
+});
+
+test('a compose network with two members becomes a boundary whose claim is a TODO', () => {
+  const { analysis } = seedCompose(COMPOSE, 'docker-compose.yml');
+  assert.deepEqual(analysis.boundaries.map((b) => [b.id, b.contains]), [['net-front', ['web', 'api']], ['net-back', ['api', 'db']]]);
+  assert.match(analysis.boundaries[0].claim, /^TODO/);
+});
+
+test('a seeded analysis validates, and every TODO is a warning until it is written', () => {
+  const { analysis } = seedCompose(COMPOSE, 'docker-compose.yml');
+  const result = validateAnalysis(analysis);
+  assert.equal(result.ok, true);
+  const todos = result.warnings.filter((w) => /TODO/.test(w.message));
+  assert.equal(todos.length, 3 + 2 + 1 + 1, 'three responsibilities, two claims, the purpose, the answer');
+  analysis.components[0].responsibility = 'Serves the pages.';
+  assert.equal(validateAnalysis(analysis).warnings.filter((w) => /TODO/.test(w.message)).length, 6);
+});
+
+test('a workspace seeds one component per package and a relation per internal dependency', () => {
+  const members = [
+    { dir: 'packages/core', pkg: { name: '@acme/core' } },
+    { dir: 'packages/cli', pkg: { name: '@acme/cli', bin: { acme: 'x' }, dependencies: { '@acme/core': '*', lodash: '*' } } },
+    { dir: 'apps/api', pkg: { name: '@acme/api', dependencies: { '@acme/core': '*' }, devDependencies: { '@acme/cli': '*' } } },
+  ];
+  const { analysis, notes } = seedWorkspaces({ name: 'acme' }, members);
+  assert.deepEqual(analysis.components.map((c) => [c.id, c.kind]), [['acme-core', 'library'], ['acme-cli', 'cli'], ['acme-api', 'service']]);
+  assert.deepEqual(analysis.relations.map((r) => `${r.from}>${r.to}`), ['acme-cli>acme-core', 'acme-api>acme-core']);
+  assert.match(notes.join('\n'), /only at development time/);
+  assert.equal(validateAnalysis(analysis).ok, true);
 });
