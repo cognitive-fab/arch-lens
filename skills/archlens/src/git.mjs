@@ -35,6 +35,13 @@ export function hunksOf(diffText) {
  */
 export function changesIn(repoRoot, { base } = {}) {
   const range = base ? [`${base}...HEAD`] : ['HEAD'];
+  // A repository with no commits yet has no HEAD to diff against: everything
+  // in it is new, which is a fine answer for a review.
+  if (!base && !hasHead(repoRoot)) {
+    const tracked = git(repoRoot, ['ls-files']).trim().split('\n');
+    const untracked = git(repoRoot, ['ls-files', '--others', '--exclude-standard']).trim().split('\n');
+    return [...tracked, ...untracked].filter(Boolean).map((path) => ({ path: path.replace(/\\/g, '/'), status: 'A', hunks: [] }));
+  }
   const status = git(repoRoot, ['diff', '--name-status', '-M', ...range]).trim();
   const changes = [];
   for (const line of status.split('\n').filter(Boolean)) {
@@ -61,6 +68,15 @@ export function changesIn(repoRoot, { base } = {}) {
     }
   }
   return changes;
+}
+
+function hasHead(repoRoot) {
+  try {
+    git(repoRoot, ['rev-parse', '--verify', '--quiet', 'HEAD']);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Whether a repository-relative path exists in the working tree. */
