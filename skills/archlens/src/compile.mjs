@@ -212,8 +212,8 @@ export function compileQuestion(analysis, questionId, options = {}) {
       pos: placed.positions.get(c.id),
       size: [NODE_W, NODE_H],
     };
-    const detail = c.detail ?? c.responsibility;
-    if (detail) spec.sublabel = shorten(detail, budget);
+    const detail = shorten(c.detail ?? c.responsibility ?? '', budget);
+    if (detail) spec.sublabel = detail;
     const marks = [];
     if (c.status && c.status !== 'built') marks.push(c.status);
     const ref = docRefFor(c, analysis);
@@ -289,6 +289,10 @@ function edgeLabel(relation) {
 /**
  * Fit text to a budget on a word boundary. A trailing comma left behind by the
  * trim reads as a truncation bug rather than an abbreviation, so it goes too.
+ *
+ * When not even the first word fits, the answer is nothing, not a stump: a
+ * reader can forgive a missing detail line and cannot forgive "replicat". The
+ * caller drops the line and says so.
  */
 export function shorten(text, budget) {
   if (!text) return '';
@@ -301,7 +305,7 @@ export function shorten(text, budget) {
     if (next.length > budget) break;
     out = next;
   }
-  return (out || clean.slice(0, budget)).replace(TRAILING, '');
+  return out.replace(TRAILING, '');
 }
 
 /**

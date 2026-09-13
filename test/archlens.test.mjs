@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { validateAnalysis, index } from '../skills/archlens/src/model.mjs';
-import { compileQuestion } from '../skills/archlens/src/compile.mjs';
+import { compileQuestion, shorten } from '../skills/archlens/src/compile.mjs';
 import { rank, layout, detailBudget } from '../skills/archlens/src/layout.mjs';
 import { renderMarkdown } from '../skills/archlens/src/markdown.mjs';
 import { briefHtml, glossaryFor } from '../skills/archlens/src/brief.mjs';
@@ -433,4 +433,10 @@ test('a glossary term in the question is expanded to its other spellings', () =>
 test('a word the analysis uses everywhere is worth less than one it uses once', () => {
   const result = ask(example, 'lease');
   assert.equal(result.components[0].component.id, 'leaser');
+});
+
+test('a detail that cannot be shortened on a word boundary is dropped, never cut mid-word', () => {
+  assert.equal(shorten('replicate, restore', 12), 'replicate');
+  assert.equal(shorten('replicate, restore', 8), '', 'no whole word fits, so nothing is shown');
+  assert.equal(shorten('one database, watched', 14), 'one database');
 });

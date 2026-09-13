@@ -13,8 +13,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { validate } from './archify.mjs';
-
-const TRAILING = /(?:[\s,;:·+\-\/]|\b(?:a|an|and|as|at|by|for|from|in|into|of|on|or|the|to|with|your|its|their)\b)+$/i;
+import { shorten } from './compile.mjs';
 
 const MAX_ROUNDS = 10;
 const STALL_LIMIT = 2;
@@ -223,8 +222,8 @@ function fixReadability(spec, diagnostic, touched) {
     return `widened "${component.id}" so its name stays readable`;
   }
 
-  const shortened = trimToWords(text, target);
-  if (shortened === text) {
+  const shortened = shorten(text, target);
+  if (!shortened || shortened === text) {
     delete component.sublabel;
     touched.add(component);
     return `dropped the detail on "${component.id}": it cannot be shortened enough to stay readable`;
@@ -381,22 +380,14 @@ function fixSublabelWidth(spec, message, touched) {
     return `widened "${id}" by ${deficit + 6}px to fit its detail`;
   }
   const target = Math.max(6, Math.floor(text.length * (provided / needed) * 0.94));
-  component.sublabel = trimToWords(text, target);
+  const shortened = shorten(text, target);
   touched.add(component);
-  return `shortened the detail on "${id}" to "${component.sublabel}"`;
-}
-
-/** Trim on a word boundary and never leave dangling punctuation behind. */
-function trimToWords(text, max) {
-  if (text.length <= max) return text;
-  const words = text.split(/\s+/);
-  let out = '';
-  for (const word of words) {
-    const next = out ? `${out} ${word}` : word;
-    if (next.length > max) break;
-    out = next;
+  if (!shortened) {
+    delete component.sublabel;
+    return `dropped the detail on "${id}": no whole word of it fits the box`;
   }
-  return (out || text.slice(0, max)).replace(TRAILING, '');
+  component.sublabel = shortened;
+  return `shortened the detail on "${id}" to "${shortened}"`;
 }
 
 /**
