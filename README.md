@@ -68,8 +68,19 @@ came from.
 
 A question is the unit of a diagram. Claude finds the components the answer
 turns on, writes the answer, the context and a narrative for a newcomer, and
-renders a single diagram for it. If the project already has an analysis, the
-question is added to it and the new diagram joins the existing set.
+renders a single diagram for it — an architecture, or a sequence when the
+question is about an order of events. If the project already has an analysis,
+the question is added to it and the new diagram joins the existing set.
+
+**Ask without drawing.**
+
+> does the replica ever write to the database?
+
+With an analysis in the project, Claude runs `archlens ask` and answers from
+what comes back: the components and relations the question touches, each with
+its evidence, and the facts that bear on it. When the analysis does not cover
+the question it says so and names the words it never mentions, rather than
+answering from memory.
 
 Whatever you ask, the output is the same: `*.analysis.json` (the thing worth
 reviewing), interactive HTML diagrams, and a markdown document generated from the
@@ -90,13 +101,17 @@ archlens validate  system.analysis.json
 archlens questions system.analysis.json            # what each diagram would draw
 archlens render    system.analysis.json docs/architecture --repo-root .
 archlens doc       system.analysis.json ARCHITECTURE.md
+archlens ask       system.analysis.json "does X ever talk to Y?"
 ```
 
 `validate` checks references and warns when the analysis is too thin to be worth
 drawing. `render` compiles every question, repairs each specification against
 archify's diagnostics until it passes, delivers the HTML, checks it in headless
 Chrome, and writes a markdown document beside the diagrams. `--repo-root` is what
-turns `code_refs` into verified source links.
+turns `evidence` paths into verified source links. `ask` gathers what the analysis
+says near a question, with evidence, and names what it never mentions — it
+calls no model, and exits non-zero when the analysis does not cover the
+question, so nothing downstream is tempted to guess.
 
 [GUIDE.md](skills/archlens/docs/GUIDE.md) walks through building an analysis
 piece by piece and has the full field reference.
@@ -285,6 +300,7 @@ skills/archlens/               the plugin's skill, self-contained
   src/layout.mjs               ranks, bands, lanes, ports, and the text budget
   src/compile.mjs              one question -> one archify specification
   src/sequence.mjs             the same, for a question with an order to it
+  src/ask.mjs                  what the analysis says near a question, and what it never mentions
   src/repair.mjs               the diagnostic-driven repair loop
   src/markdown.mjs             the same analysis, as prose
   src/archify.mjs              where archify is, and how to run it

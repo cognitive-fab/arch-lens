@@ -236,8 +236,16 @@ archlens validate  notes.analysis.json          # referential errors and thin sp
 archlens questions notes.analysis.json          # what each diagram would draw
 archlens render    notes.analysis.json docs/architecture --repo-root .
 archlens doc       notes.analysis.json ARCHITECTURE.md --diagrams docs/architecture
+archlens ask       notes.analysis.json "does the indexer ever write a note?"
 archlens doctor                                 # where archify was found
 ```
+
+`ask` does not render and does not call a model. It gathers what the analysis
+says near a question — components with their evidence, the relations between
+them, facts, questions already answered, glossary terms — and ends by naming the
+words in the question the analysis never uses. It exits 3 when the analysis
+does not cover the question, so a script or an agent can refuse to answer
+rather than guess. `--json` gives the same slice as data.
 
 Useful flags on `render`:
 

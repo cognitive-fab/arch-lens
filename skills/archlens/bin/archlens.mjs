@@ -15,6 +15,7 @@ import { widenSequence } from '../src/sequence.mjs';
 import { renderMarkdown } from '../src/markdown.mjs';
 import { archifyRoot, deliver, visualCheck } from '../src/archify.mjs';
 import { injectBrief } from '../src/brief.mjs';
+import { ask, renderAsk } from '../src/ask.mjs';
 
 const USAGE = `archlens — an architecture analysis, rendered
 
@@ -31,6 +32,11 @@ const USAGE = `archlens — an architecture analysis, rendered
 
   archlens doc <analysis.json> [out.md] [--diagrams <dir>]
       Render the analysis as a markdown architecture document.
+
+  archlens ask <analysis.json> "<question>" [--json]
+      Gather what the analysis says about a question — components, relations,
+      facts, questions already answered, terms — each with its evidence, and
+      name what the question asks about that the analysis never mentions.
 
   archlens doctor
       Report where archify was found and whether it runs.
@@ -64,6 +70,7 @@ async function main() {
     case 'questions': return cmdQuestions();
     case 'render': return cmdRender();
     case 'doc': return cmdDoc();
+    case 'ask': return cmdAsk();
     case 'doctor': return cmdDoctor();
     case '--help': case '-h': case undefined: return say(USAGE);
     default: return fail(`unknown command "${command}"\n\n${USAGE}`);
@@ -233,6 +240,30 @@ function cmdDoc() {
   mkdirSync(dirname(resolve(out)), { recursive: true });
   writeFileSync(resolve(out), markdown, 'utf8');
   say(`wrote ${resolve(out)}`);
+}
+
+function cmdAsk() {
+  const { analysis } = readAnalysis();
+  const question = positional.slice(1).join(' ').trim();
+  if (!question) fail('a question is required, in quotes');
+  const result = ask(analysis, question);
+  if (has('json')) {
+    const { idx, ...rest } = result;
+    const plain = {
+      ...rest,
+      components: rest.components.map((m) => ({ id: m.component.id, score: m.score, matched: [...m.found] })),
+      relations: rest.relations.map((m) => ({ from: m.relation.from, to: m.relation.to, score: m.score, matched: [...m.found] })),
+      facts: rest.facts.map((m) => ({ id: m.fact.id, score: m.score, matched: [...m.found] })),
+      questions: rest.questions.map((m) => ({ id: m.question.id, score: m.score, matched: [...m.found] })),
+      boundaries: rest.boundaries.map((m) => ({ id: m.boundary.id, score: m.score, matched: [...m.found] })),
+      glossary: rest.glossary.map((t) => t.term),
+    };
+    return say(JSON.stringify(plain, null, 2));
+  }
+  process.stdout.write(renderAsk(result));
+  // Exit 3 means "the analysis does not have this", for a caller that must not
+  // answer from anything else.
+  if (result.empty || result.coverage < 0.5) process.exit(3);
 }
 
 function cmdDoctor() {

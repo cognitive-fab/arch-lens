@@ -3,7 +3,7 @@ name: archlens
 description: Analyse a system's architecture into a structured, evidence-carrying model, then render that model as a set of validated interactive diagrams and a matching markdown document. Use when asked to map, diagram, document or explain the architecture of a codebase or design; to produce architecture diagrams that stay honest about what exists versus what is only designed; or to keep an architecture document and its diagrams from disagreeing. Prefer this over drawing a diagram directly.
 license: MIT
 metadata:
-  version: "0.1.1"
+  version: "0.2.0"
 ---
 
 # Archlens
@@ -43,8 +43,37 @@ analysis is the artifact and the diagram is a projection of it.
    `dropped` line. A dropped boundary or an omitted component is a fact about the
    diagram and belongs in your answer.
 
-Never hand-edit the generated `*.architecture.json` or `*.html`. They are output.
-Change the analysis and render again.
+Never hand-edit the generated `*.architecture.json`, `*.sequence.json` or
+`*.html`. They are output. Change the analysis and render again.
+
+## Answering a question without drawing
+
+Most questions about a system want a sentence and a citation, not a diagram.
+When an analysis already exists and the user asks something — "does the replica
+ever write to the database?", "what stops two processes sharing a bucket?" —
+do not draw, and do not answer from memory. Ask the analysis:
+
+```bash
+node bin/archlens.mjs ask <name>.analysis.json "does the replica ever write to the database?"
+```
+
+It returns the slice the question touches — components with their evidence,
+the relations between them and what crosses, the facts, any question already
+answered, the glossary terms used — and ends with the words in the question the
+analysis never mentions. Write the answer from that slice and nothing else:
+
+- Cite what you use. A component by name, a relation as `A -> B`, evidence as
+  the path it carries. A reader should be able to open the analysis and find
+  every claim.
+- If it says *mostly does not cover this* or exits 3, say the analysis does not
+  answer the question, name the words it never mentions, and stop. Do not fill
+  the gap from the code or from general knowledge unless the user asks you to
+  extend the analysis — in which case read the sources, add what you learn to
+  the analysis with evidence, validate, and answer from the new version.
+- If a listed question already answers it, say so and point at its diagram.
+- Offer a diagram only when the question would be better answered by one — an
+  order of events, or a set of parts and the lines between them — and then add
+  it as a question and render, as above.
 
 ## Authoring the analysis
 

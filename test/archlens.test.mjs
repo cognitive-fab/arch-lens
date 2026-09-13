@@ -18,6 +18,7 @@ import { compileQuestion } from '../skills/archlens/src/compile.mjs';
 import { rank, layout, detailBudget } from '../skills/archlens/src/layout.mjs';
 import { renderMarkdown } from '../skills/archlens/src/markdown.mjs';
 import { briefHtml, glossaryFor } from '../skills/archlens/src/brief.mjs';
+import { ask, renderAsk } from '../skills/archlens/src/ask.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const example = JSON.parse(readFileSync(join(here, '..', 'skills', 'archlens', 'examples', 'litestream.analysis.json'), 'utf8'));
@@ -396,4 +397,40 @@ test('the document lists a sequence in order, replies marked', () => {
   assert.match(md, /In order:/);
   assert.match(md, /1\. \*\*A → B\*\* — calls\. A request\./);
   assert.match(md, /2\. \*\*B ⇢ A\*\* — done/);
+});
+
+// --- asking ------------------------------------------------------------------
+
+test('a question the analysis covers comes back with the component, its evidence, and the relation between', () => {
+  const result = ask(example, 'does the replica ever write to the database?');
+  assert.equal(result.empty, false);
+  assert.ok(result.components.some((m) => m.component.id === 'replica'));
+  assert.ok(result.questions.some((m) => m.question.id === 'safety'), 'the safety question is already an answer');
+  const text = renderAsk(result);
+  assert.match(text, /replica\.go/, 'evidence is cited');
+  assert.match(text, /Every term in the question is covered/);
+});
+
+test('a question the analysis does not cover says so, by the words it never uses', () => {
+  const result = ask(example, 'how is authentication to Kubernetes configured?');
+  assert.deepEqual(result.unmatched, ['authentication', 'kubernetes']);
+  assert.ok(result.coverage < 0.5);
+  assert.match(renderAsk(result), /^The analysis mostly does not cover this\. It never mentions: authentication, kubernetes\./m);
+});
+
+test('a question about nothing in the analysis is empty, not answered from nearby', () => {
+  const result = ask(example, 'quantum entanglement');
+  assert.equal(result.empty, true);
+  assert.match(renderAsk(result), /does not cover this/);
+});
+
+test('a glossary term in the question is expanded to its other spellings', () => {
+  const result = ask(example, 'who reads the WAL?');
+  assert.ok(result.glossary.some((t) => t.term === 'write-ahead log'));
+  assert.ok(result.components.some((m) => m.component.id === 'wal'), 'WAL finds the write-ahead log');
+});
+
+test('a word the analysis uses everywhere is worth less than one it uses once', () => {
+  const result = ask(example, 'lease');
+  assert.equal(result.components[0].component.id, 'leaser');
 });
