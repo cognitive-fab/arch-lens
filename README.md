@@ -335,6 +335,7 @@ repository revision to verify them against.
 - **[analysis.schema.json](skills/archlens/schemas/analysis.schema.json)** — every
   field, with the reasoning in its descriptions.
 - **[SKILL.md](skills/archlens/SKILL.md)** — what Claude reads.
+- **[CHANGELOG.md](CHANGELOG.md)** — what changed, by version.
 
 ## Layout of this repository
 

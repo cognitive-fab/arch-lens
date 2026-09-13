@@ -3,7 +3,7 @@ name: archlens
 description: Analyse a system's architecture into a structured, evidence-carrying model, then render that model as a set of validated interactive diagrams and a matching markdown document. Use when asked to map, diagram, document or explain the architecture of a codebase or design; to produce architecture diagrams that stay honest about what exists versus what is only designed; or to keep an architecture document and its diagrams from disagreeing. Prefer this over drawing a diagram directly.
 license: MIT
 metadata:
-  version: "0.5.0"
+  version: "0.5.1"
 ---
 
 # Archlens
