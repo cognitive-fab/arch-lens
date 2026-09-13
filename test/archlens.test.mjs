@@ -19,6 +19,8 @@ import { rank, layout, detailBudget } from '../skills/archlens/src/layout.mjs';
 import { renderMarkdown } from '../skills/archlens/src/markdown.mjs';
 import { briefHtml, glossaryFor } from '../skills/archlens/src/brief.mjs';
 import { ask, renderAsk } from '../skills/archlens/src/ask.mjs';
+import { review, renderReview } from '../skills/archlens/src/review.mjs';
+import { hunksOf } from '../skills/archlens/src/git.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const example = JSON.parse(readFileSync(join(here, '..', 'skills', 'archlens', 'examples', 'litestream.analysis.json'), 'utf8'));
@@ -439,4 +441,58 @@ test('a detail that cannot be shortened on a word boundary is dropped, never cut
   assert.equal(shorten('replicate, restore', 12), 'replicate');
   assert.equal(shorten('replicate, restore', 8), '', 'no whole word fits, so nothing is shown');
   assert.equal(shorten('one database, watched', 14), 'one database');
+});
+
+// --- reviewing a change --------------------------------------------------------
+
+test('a changed file is traced to the components it is evidence for, and the diagrams that show them', () => {
+  const result = review(example, [{ path: 'replica.go', status: 'M', hunks: [[10, 12]] }]);
+  assert.deepEqual(result.touched.map((t) => t.component.id), ['replica']);
+  assert.ok(result.questions.some((m) => m.question.id === 'write'));
+  assert.deepEqual(result.uncovered, []);
+});
+
+test('a directory cited as evidence covers the files beneath it', () => {
+  const doc = minimal();
+  doc.components[0].evidence = [{ path: 'cmd/tool/' }];
+  const result = review(doc, [{ path: 'cmd/tool/new.go', status: 'A', hunks: [] }]);
+  assert.deepEqual(result.touched.map((t) => t.component.id), ['a']);
+  assert.deepEqual(review(doc, [{ path: 'cmd/toolbox/x.go', status: 'A' }]).touched, [], 'a prefix is not a directory');
+});
+
+test('a change outside every cited line of a file is reported as near, not as a touch', () => {
+  const doc = minimal();
+  doc.components[0].evidence = [{ path: 'src/a.js', line: 40, end_line: 60 }];
+  const near = review(doc, [{ path: 'src/a.js', status: 'M', hunks: [[1, 3]] }]);
+  assert.deepEqual(near.touched, []);
+  assert.deepEqual(near.uncovered, [], 'the file is still claimed by the analysis');
+  const hit = review(doc, [{ path: 'src/a.js', status: 'M', hunks: [[55, 58]] }]);
+  assert.equal(hit.touched[0].files[0].how, 'lines');
+});
+
+test('a changed file the analysis has no component for is named, never absorbed', () => {
+  const result = review(example, [{ path: 'internal/resumable_reader.go', status: 'A', hunks: [] }]);
+  assert.equal(result.quiet, true);
+  assert.deepEqual(result.uncovered, ['internal/resumable_reader.go']);
+  assert.match(renderReview(result), /no component for:\n  internal\/resumable_reader\.go/);
+});
+
+test('deleting a file the analysis cites is reported as evidence gone', () => {
+  const result = review(example, [{ path: 'leaser.go', status: 'D', hunks: [] }]);
+  assert.deepEqual(result.gone.map((g) => `${g.component.id}:${g.path}`), ['leaser:leaser.go']);
+  assert.match(renderReview(result), /^Evidence this change removes/m);
+});
+
+test('a change spanning two boundaries lists both claims', () => {
+  const result = review(example, [
+    { path: 'store.go', status: 'M', hunks: [] },
+    { path: 'wal_reader.go', status: 'M', hunks: [] },
+  ]);
+  assert.deepEqual(result.boundaries.map((m) => m.boundary.id).sort(), ['daemon', 'sqlite']);
+  assert.match(renderReview(result), /spans 2 boundaries/);
+});
+
+test('hunk headers become new-side line ranges', () => {
+  const diff = '@@ -1,3 +1,4 @@\nfoo\n@@ -10 +11,0 @@\nbar\n@@ -20,2 +22 @@\n';
+  assert.deepEqual(hunksOf(diff), [[1, 4], [11, 11], [22, 22]]);
 });

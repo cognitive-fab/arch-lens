@@ -72,6 +72,17 @@ renders a single diagram for it — an architecture, or a sequence when the
 question is about an order of events. If the project already has an analysis,
 the question is added to it and the new diagram joins the existing set.
 
+**Review a change against it.**
+
+> review this branch against the architecture
+
+With an analysis in place, `archlens review --base main` maps the changed files
+to the components they are evidence for and lists what the change lands on:
+the boundaries it spans and what they claim, the relations whose `what_crosses`
+may have moved, the guarantees attached to the diagrams that show it, and the
+changed files the analysis has no component for. Claude reviews the code with
+those claims in hand instead of from memory of them.
+
 **Ask without drawing.**
 
 > does the replica ever write to the database?
@@ -102,6 +113,7 @@ archlens questions system.analysis.json            # what each diagram would dra
 archlens render    system.analysis.json docs/architecture --repo-root .
 archlens doc       system.analysis.json ARCHITECTURE.md
 archlens ask       system.analysis.json "does X ever talk to Y?"
+archlens review    system.analysis.json --repo-root . --base main
 ```
 
 `validate` checks references and warns when the analysis is too thin to be worth
@@ -111,7 +123,10 @@ Chrome, and writes a markdown document beside the diagrams. `--repo-root` is wha
 turns `evidence` paths into verified source links. `ask` gathers what the analysis
 says near a question, with evidence, and names what it never mentions — it
 calls no model, and exits non-zero when the analysis does not cover the
-question, so nothing downstream is tempted to guess.
+question, so nothing downstream is tempted to guess. `review` reads a git
+change against the analysis: which components its files are evidence for,
+which boundary claims and relations to re-check, and which changed files have
+no component at all.
 
 [GUIDE.md](skills/archlens/docs/GUIDE.md) walks through building an analysis
 piece by piece and has the full field reference.
@@ -301,6 +316,8 @@ skills/archlens/               the plugin's skill, self-contained
   src/compile.mjs              one question -> one archify specification
   src/sequence.mjs             the same, for a question with an order to it
   src/ask.mjs                  what the analysis says near a question, and what it never mentions
+  src/review.mjs               a change, read against the analysis
+  src/git.mjs                  the change, as git tells it
   src/repair.mjs               the diagnostic-driven repair loop
   src/markdown.mjs             the same analysis, as prose
   src/archify.mjs              where archify is, and how to run it

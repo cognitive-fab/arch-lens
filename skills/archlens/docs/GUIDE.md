@@ -237,8 +237,20 @@ archlens questions notes.analysis.json          # what each diagram would draw
 archlens render    notes.analysis.json docs/architecture --repo-root .
 archlens doc       notes.analysis.json ARCHITECTURE.md --diagrams docs/architecture
 archlens ask       notes.analysis.json "does the indexer ever write a note?"
+archlens review    notes.analysis.json --repo-root . --base main
 archlens doctor                                 # where archify was found
 ```
+
+`review` reads a change against the analysis. It maps the changed files to the
+components they are evidence for (a cited directory covers what is under it; a
+cited line range only counts when the change overlaps it), then lists the
+boundaries the change spans with their claims, the relations between touched
+components, the guarantees and constraints attached to the diagrams that show
+them, and the diagrams to re-render. Changed files with no component are
+listed separately — that is either "outside the architecture" or "the analysis
+is missing something", and the reviewer says which. Without `--base` it reads
+the working tree, including untracked files, against HEAD. Exit 2 means the
+change deleted a file the analysis cites.
 
 `ask` does not render and does not call a model. It gathers what the analysis
 says near a question — components with their evidence, the relations between

@@ -75,6 +75,36 @@ analysis never mentions. Write the answer from that slice and nothing else:
   order of events, or a set of parts and the lines between them — and then add
   it as a question and render, as above.
 
+## Reviewing a change against the analysis
+
+When asked to review a diff, a branch or a pull request in a project that has
+an analysis, read the change against it before reading the code:
+
+```bash
+node bin/archlens.mjs review <name>.analysis.json --repo-root . --base main
+```
+
+Without `--base` it reads the working tree against HEAD. It reports which
+components the changed files are evidence for, which boundaries the change
+spans and what each one claims, which relations between touched components to
+re-read, which guarantees and constraints the change lands on, which diagrams
+now need re-rendering, and — separately — which changed files the analysis
+has no component for. Then review the code with that in hand:
+
+- For each boundary claim listed, say whether the change keeps it true. A
+  change that adds a call from inside a boundary to outside it, where the
+  analysis declares no such relation, is the finding this exists to catch.
+- For each relation listed, say whether `what_crosses` is still accurate. If
+  the change moves something new across an edge, the analysis needs updating
+  as part of the change, not after it.
+- For files the analysis has no component for, say which they are: outside
+  the architecture (tests, build, docs) or a component the analysis is missing.
+  Do not let a new module slip in unnamed.
+- If evidence is reported gone, the analysis is stale and says so; fix the
+  evidence in the same change.
+
+Exit 2 means the change removed something the analysis cites.
+
 ## Authoring the analysis
 
 **Components.** `responsibility` is one sentence, active voice, naming what the

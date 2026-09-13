@@ -16,6 +16,8 @@ import { renderMarkdown } from '../src/markdown.mjs';
 import { archifyRoot, deliver, visualCheck } from '../src/archify.mjs';
 import { injectBrief } from '../src/brief.mjs';
 import { ask, renderAsk } from '../src/ask.mjs';
+import { review, renderReview } from '../src/review.mjs';
+import { changesIn, existsIn } from '../src/git.mjs';
 
 const USAGE = `archlens — an architecture analysis, rendered
 
@@ -37,6 +39,12 @@ const USAGE = `archlens — an architecture analysis, rendered
       Gather what the analysis says about a question — components, relations,
       facts, questions already answered, terms — each with its evidence, and
       name what the question asks about that the analysis never mentions.
+
+  archlens review <analysis.json> --repo-root <dir> [--base <ref>] [--json]
+      Read a change against the analysis: which components its files are
+      evidence for, which boundaries it spans and what they claim, which
+      relations and diagrams to re-check, and which changed files the analysis
+      has no component for. Without --base, the working tree against HEAD.
 
   archlens doctor
       Report where archify was found and whether it runs.
@@ -71,6 +79,7 @@ async function main() {
     case 'render': return cmdRender();
     case 'doc': return cmdDoc();
     case 'ask': return cmdAsk();
+    case 'review': return cmdReview();
     case 'doctor': return cmdDoctor();
     case '--help': case '-h': case undefined: return say(USAGE);
     default: return fail(`unknown command "${command}"\n\n${USAGE}`);
@@ -264,6 +273,32 @@ function cmdAsk() {
   // Exit 3 means "the analysis does not have this", for a caller that must not
   // answer from anything else.
   if (result.empty || result.coverage < 0.5) process.exit(3);
+}
+
+function cmdReview() {
+  const { analysis } = readAnalysis();
+  const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : null;
+  if (!repoRoot) fail('--repo-root is required: the change is read from git there');
+  const base = flag('base') ?? undefined;
+  const changes = changesIn(repoRoot, { base });
+  const result = review(analysis, changes, { exists: existsIn(repoRoot) });
+  if (has('json')) {
+    const { idx, ...rest } = result;
+    return say(JSON.stringify({
+      ...rest,
+      touched: rest.touched.map((t) => ({ id: t.component.id, files: t.files })),
+      relationsChanged: rest.relationsChanged.map((m) => ({ from: m.relation.from, to: m.relation.to, path: m.path, how: m.how })),
+      questions: rest.questions.map((m) => ({ id: m.question.id, touched: m.touched })),
+      boundaries: rest.boundaries.map((m) => ({ id: m.boundary.id, claim: m.boundary.claim, touched: m.touched })),
+      relationsBetween: rest.relationsBetween.map((r) => ({ from: r.from, to: r.to })),
+      crossingsFrom: rest.crossingsFrom.map((r) => ({ from: r.from, to: r.to, crosses: r.crosses })),
+      facts: rest.facts.map((f) => f.id),
+      gone: rest.gone.map((g) => ({ id: g.component.id, path: g.path })),
+    }, null, 2));
+  }
+  process.stdout.write(renderReview(result));
+  // Exit 2: the analysis now cites something that is not there.
+  if (result.gone.length) process.exit(2);
 }
 
 function cmdDoctor() {
