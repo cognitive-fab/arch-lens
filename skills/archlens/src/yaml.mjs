@@ -12,15 +12,28 @@
  */
 export function parseYaml(text) {
   const lines = [];
+  let documents = 0;
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = stripComment(raw);
     if (!line.trim()) return;
-    if (/^---|^\.\.\./.test(line)) throw new Error(`line ${i + 1}: multi-document YAML is not supported`);
+    if (/^---(\s|$)/.test(line)) {
+      // One leading marker is just how some files begin. A second one is a
+      // second document, and so is anything that came before the first.
+      documents += 1;
+      if (documents > 1 || lines.length > 0) throw new Error(`line ${i + 1}: multi-document YAML is not supported`);
+      return;
+    }
+    if (/^\.\.\.(\s|$)/.test(line)) throw new Error(`line ${i + 1}: multi-document YAML is not supported`);
     if (/^\s*[&*]/.test(line) || /:\s*[&*]\w/.test(line)) throw new Error(`line ${i + 1}: YAML anchors and aliases are not supported`);
-    if (/:\s*[|>][-+]?\s*$/.test(line)) throw new Error(`line ${i + 1}: block scalars are not supported`);
+    if (/(?::|^\s*-)\s*[|>][-+]?\s*$/.test(line)) throw new Error(`line ${i + 1}: block scalars are not supported`);
     lines.push({ n: i + 1, indent: line.match(/^ */)[0].length, text: line.trim() });
   });
-  const [value] = parseBlock(lines, 0, -1);
+  const [value, next] = parseBlock(lines, 0, -1);
+  if (next < lines.length) {
+    // A line the descent could not attach is an indentation error, and the
+    // one thing this parser must never do is drop it and carry on.
+    throw new Error(`line ${lines[next].n}: unexpected indentation at "${lines[next].text}"`);
+  }
   return value;
 }
 
@@ -32,7 +45,7 @@ function stripComment(raw) {
     if (quote) {
       out += ch;
       if (ch === quote) quote = null;
-    } else if (ch === '"' || ch === "'") {
+    } else if ((ch === '"' || ch === "'") && opensScalar(raw, i)) {
       quote = ch;
       out += ch;
     } else if (ch === '#' && (i === 0 || /\s/.test(raw[i - 1]))) {
@@ -44,11 +57,27 @@ function stripComment(raw) {
   return out.replace(/\s+$/, '');
 }
 
-/** Parse the block starting at `at`, whose lines are indented more than `parentIndent`. */
-function parseBlock(lines, at, parentIndent) {
-  if (at >= lines.length || lines[at].indent <= parentIndent) return [null, at];
+/**
+ * A quote opens a scalar only at the start of one: after `key: `, after `- `,
+ * at the start of the line, or after `[`, `{` or `,` in a flow collection. An
+ * apostrophe inside a plain value is just an apostrophe.
+ */
+function opensScalar(raw, i) {
+  const before = raw.slice(0, i);
+  return /(?:^|:\s+|^\s*-\s+|[[{,]\s*)$/.test(before);
+}
+
+/**
+ * Parse the block starting at `at`, whose lines are indented more than
+ * `parentIndent` — except that a list may sit at the same indent as the key it
+ * belongs to, which is the compact style most compose files use.
+ */
+function parseBlock(lines, at, parentIndent, { listMayAlign = false } = {}) {
+  if (at >= lines.length) return [null, at];
+  const isItem = lines[at].text.startsWith('- ') || lines[at].text === '-';
   const indent = lines[at].indent;
-  if (lines[at].text.startsWith('- ') || lines[at].text === '-') return parseList(lines, at, indent);
+  if (indent < parentIndent || (indent === parentIndent && !(isItem && listMayAlign))) return [null, at];
+  if (isItem) return parseList(lines, at, indent);
   return parseMap(lines, at, indent);
 }
 
@@ -65,7 +94,7 @@ function parseMap(lines, at, indent) {
       out[key] = scalar(rest);
       i += 1;
     } else {
-      const [value, next] = parseBlock(lines, i + 1, indent);
+      const [value, next] = parseBlock(lines, i + 1, indent, { listMayAlign: true });
       out[key] = value === null ? null : value;
       i = next;
     }
@@ -83,7 +112,7 @@ function parseList(lines, at, indent) {
       const [value, next] = parseBlock(lines, i + 1, indent);
       out.push(value);
       i = next;
-    } else if (/^("[^"]*"|'[^']*'|[^:#]+?)\s*:(?:\s+.*)?$/.test(rest)) {
+    } else if (!/^[[{]/.test(rest) && /^("[^"]*"|'[^']*'|[^:#]+?)\s*:(?:\s+.*)?$/.test(rest)) {
       // "- key: value" opens a mapping whose remaining keys are indented to
       // line up with the key. Re-present the first pair as a line at that indent.
       const inner = indent + 2;

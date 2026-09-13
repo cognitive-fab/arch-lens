@@ -6,7 +6,8 @@
 // one that failed.
 
 import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { dirname, join, resolve, relative as relativePath, posix } from 'node:path';
 
 import { loadAnalysis, validateAnalysis, index } from '../src/model.mjs';
 import { compileQuestion, compileAll } from '../src/compile.mjs';
@@ -315,9 +316,18 @@ function cmdSeed() {
   const input = positional[0];
   if (!input) fail('an input file is required: a compose file, a package.json with workspaces, or pnpm-workspace.yaml');
   const inputPath = resolve(input);
-  const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : dirname(inputPath);
+  // Evidence is repository-relative, and `review` will later compare it with
+  // what git reports, so the root has to be the repository's — not the input's
+  // directory, which for deploy/docker-compose.yml would be one level wrong.
+  const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : gitRootOf(dirname(inputPath)) ?? dirname(inputPath);
   const rel = (p) => p.replace(/\\/g, '/');
-  const relative = (abs) => rel(abs.slice(repoRoot.length + 1));
+  const relative = (abs) => {
+    const r = rel(relativePath(repoRoot, abs));
+    if (r.startsWith('../') || r === '..' || /^[A-Za-z]:/.test(r)) {
+      fail(`"${input}" is not under the repository root ${repoRoot}; pass --repo-root to the directory the evidence should be relative to`);
+    }
+    return r;
+  };
   const base = input.split(/[\\/]/).pop();
   const name = flag('name') ?? undefined;
 
@@ -362,17 +372,37 @@ function cmdSeed() {
   say(`wrote    ${resolve(out)}`);
 }
 
-/** `packages/*` and friends: one level of star, or a literal directory. */
+/**
+ * `packages/*` and friends: a literal directory, or one directory level with a
+ * star somewhere in its last segment (`apps/*`, `apps/*-app`, `*`). Deeper
+ * globs are refused rather than half-matched, and every result is a clean
+ * repository-relative path with no leading `./` or `/`.
+ */
 function expandWorkspace(repoRoot, pattern) {
-  const clean = pattern.replace(/\/+$/, '').replace(/\/\*\*$/, '/*');
+  const clean = posix.normalize(pattern.replace(/\\/g, '/')).replace(/^\.\/?/, '').replace(/\/+$/, '').replace(/\/\*\*$/, '/*');
+  if (clean === '.' || clean === '') return [];
   if (!clean.includes('*')) return existsSync(join(repoRoot, clean)) ? [clean] : [];
-  const [head] = clean.split('*');
-  const parent = head.replace(/\/+$/, '');
-  const dir = join(repoRoot, parent);
+  const parts = clean.split('/');
+  const last = parts.pop();
+  const parent = parts.join('/');
+  if (parent.includes('*') || last === '**') {
+    fail(`workspace pattern "${pattern}" is deeper than one directory level of glob, which seed does not expand`);
+  }
+  const dir = parent ? join(repoRoot, parent) : repoRoot;
   if (!existsSync(dir)) return [];
+  const matcher = new RegExp(`^${last.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
   return readdirSync(dir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !d.name.startsWith('.') && d.name !== 'node_modules')
-    .map((d) => `${parent}/${d.name}`);
+    .filter((d) => d.isDirectory() && !d.name.startsWith('.') && d.name !== 'node_modules' && matcher.test(d.name))
+    .map((d) => (parent ? `${parent}/${d.name}` : d.name));
+}
+
+/** The repository root above a directory, or null when git has no opinion. */
+function gitRootOf(dir) {
+  try {
+    return execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
 }
 
 function cmdDoctor() {

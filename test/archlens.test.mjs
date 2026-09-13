@@ -567,3 +567,29 @@ test('a workspace seeds one component per package and a relation per internal de
   assert.match(notes.join('\n'), /only at development time/);
   assert.equal(validateAnalysis(analysis).ok, true);
 });
+
+// --- what the review of the seed found -------------------------------------------
+
+test('a list may sit at the same indent as its key, the compact style compose files use', () => {
+  const doc = parseYaml('services:\n  web:\n    depends_on:\n    - api\n    - db\n    image: x\n');
+  assert.deepEqual(doc.services.web, { depends_on: ['api', 'db'], image: 'x' });
+});
+
+test('one leading document marker is allowed; a second document is not', () => {
+  assert.deepEqual(parseYaml('---\na: 1\n'), { a: 1 });
+  assert.throws(() => parseYaml('a: 1\n---\nb: 2\n'), /multi-document/);
+});
+
+test('a line the parser cannot attach is an error, never silently dropped', () => {
+  assert.throws(() => parseYaml('a:\n  b: 1\n c: 2\nd: 3\n'), /line 3: unexpected indentation/);
+  assert.throws(() => parseYaml('- |\n  text\n'), /block scalars/);
+});
+
+test('a flow mapping as a list item is a mapping, not a key', () => {
+  assert.deepEqual(parseYaml('ports:\n  - {target: 80, published: 8080}\n'), { ports: [{ target: 80, published: 8080 }] });
+});
+
+test('an apostrophe inside a plain value does not swallow the comment after it', () => {
+  assert.deepEqual(parseYaml("command: echo it's fine # comment\n"), { command: "echo it's fine" });
+  assert.deepEqual(parseYaml("a: 'x # y'\nb: [\"p # q\", r]\n"), { a: 'x # y', b: ['p # q', 'r'] });
+});
