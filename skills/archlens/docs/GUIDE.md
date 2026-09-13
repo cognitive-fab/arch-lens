@@ -239,8 +239,36 @@ archlens doc       notes.analysis.json ARCHITECTURE.md --diagrams docs/architect
 archlens ask       notes.analysis.json "does the indexer ever write a note?"
 archlens review    notes.analysis.json --repo-root . --base main
 archlens seed      docker-compose.yml notes.analysis.json   # a draft, from what the repo states
+archlens check     notes.analysis.json --repo-root .        # is every citation still there?
+archlens enforce   notes.analysis.json --repo-root .        # do the ruled constraints hold?
+archlens compare   old.analysis.json notes.analysis.json docs/compare
 archlens doctor                                 # where archify was found
 ```
+
+`check` is the drift check, for CI. Every evidence reference is re-resolved
+against the working tree: a path that is gone, or a line range past the end of
+its file, exits 1. When the pinned `system.repository.revision` is in the
+clone, it also lists every cited file that changed since — the claim may
+still hold, but someone has to look — and how many commits HEAD is past the
+pin. A `planned` component whose evidence resolves is flagged: it was built,
+or the citation was a guess.
+
+`enforce` checks constraints that carry a `rule` (see the field reference).
+Against the analysis's own relations first — `validate` does that too, as an
+error — and then, with `--repo-root`, against the imports in the code each
+component's evidence cites. An import from one component's files into
+another's is an edge whether or not it was declared, and a rule it breaks is
+reported with `file:line`. Edges the code has that the analysis never declared
+are listed separately. Import resolution follows relative JavaScript and
+TypeScript imports, Python `from`/`import`, and Go module paths; packages and
+the standard library are not edges in this model, and anything it could not
+resolve is counted rather than guessed.
+
+`compare` takes two analyses and reports the difference in the claims: what
+was added, removed or changed among components, relations, boundaries, facts
+and questions, and which components went from `planned` to `built`. With an
+output directory it also renders archify's visual comparison for every
+architecture question both analyses ask.
 
 `seed` drafts an analysis from something the repository already states, with
 evidence attached: a compose file (services, images, `depends_on`, networks as
@@ -339,6 +367,12 @@ label when it fits.
 
 **Fact kinds**: `doctrine`, `guarantee`, `constraint`, `tradeoff`, `risk`. Each
 gets its own card colour.
+
+**Rules**, on a `constraint` only: `{"kind": "no-relation", "from": X, "to": Y}`
+— nothing in X reaches anything in Y; `{"kind": "only-via", "to": Y, "via":
+[A, B]}` — everything that reaches Y comes from A or B, or from inside Y. X, Y,
+A and B are component or boundary ids; a boundary stands for all its members.
+Checked by `validate` against the relations and by `enforce` against the code.
 
 **Question shapes**: `architecture` (the default) draws the parts and what joins
 them; `sequence` draws `steps` in order along declared relations. Step kinds:

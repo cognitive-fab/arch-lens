@@ -12,6 +12,7 @@
 // quietly renderable.
 
 import { readFileSync } from 'node:fs';
+import { ruleProblems, checkRulesAgainstModel } from './rules.mjs';
 
 const ID = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 
@@ -208,7 +209,22 @@ export function validateAnalysis(doc) {
       if (!FACT_KINDS.has(f.kind)) err(`${at}.kind`, `unknown fact kind ${JSON.stringify(f.kind)}`);
       if (!isStr(f.claim)) err(`${at}.claim`, 'claim is required');
       validateEvidence(f.evidence, `${at}.evidence`, err);
+      if (f.rule !== undefined) {
+        if (f.kind !== 'constraint') warn(`${at}.rule`, `fact "${f.id}" carries a rule but is a ${f.kind}; only a constraint is enforced`);
+        for (const p of ruleProblems(f.rule, { components: byId, boundaries: new Map((doc.boundaries ?? []).map((b) => [b?.id, b])) })) {
+          err(`${at}.rule${p.where}`, p.message, p.fix);
+        }
+      }
     });
+  }
+
+  // A rule the analysis itself breaks is the document contradicting its own
+  // doctrine, which no reader can be expected to notice.
+  if (errors.length === 0) {
+    for (const v of checkRulesAgainstModel(doc)) {
+      const i = doc.relations.indexOf(v.relation);
+      err(`relations[${i}]`, `the analysis ${v.message}`, `remove the relation, or change the rule on fact "${v.fact.id}"`);
+    }
   }
 
   // --- questions ----------------------------------------------------------

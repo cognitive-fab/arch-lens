@@ -3,7 +3,7 @@ name: archlens
 description: Analyse a system's architecture into a structured, evidence-carrying model, then render that model as a set of validated interactive diagrams and a matching markdown document. Use when asked to map, diagram, document or explain the architecture of a codebase or design; to produce architecture diagrams that stay honest about what exists versus what is only designed; or to keep an architecture document and its diagrams from disagreeing. Prefer this over drawing a diagram directly.
 license: MIT
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
 ---
 
 # Archlens
@@ -120,6 +120,48 @@ has no component for. Then review the code with that in hand:
   evidence in the same change.
 
 Exit 2 means the change removed something the analysis cites.
+
+## Keeping the analysis true
+
+An analysis pins a revision and cites evidence, and both go stale silently.
+Two commands make that visible, and both are meant for CI:
+
+```bash
+node bin/archlens.mjs check <name>.analysis.json --repo-root .      # is every citation still there?
+node bin/archlens.mjs enforce <name>.analysis.json --repo-root .    # do the constraints still hold?
+```
+
+`check` re-resolves every evidence reference and, when the pinned revision is
+in the clone, says which cited files changed since it. *Gone* citations exit
+1 and must be fixed; *changed* ones need re-reading, after which move
+`system.repository.revision` to HEAD; a component marked `planned` whose
+evidence resolves has probably been built, so change its status.
+
+`enforce` checks every constraint fact that carries a `rule`. Give a rule to
+a constraint whenever the sentence is really about which parts may reach
+which:
+
+```json
+{ "id": "no-reach-back", "kind": "constraint",
+  "claim": "Nothing downstream of the replica reaches back into the database",
+  "rule": { "kind": "only-via", "to": "sqlite", "via": ["db", "cli"] } }
+```
+
+`no-relation` (`from`, `to`) and `only-via` (`to`, `via`) are the two shapes;
+each id may be a component or a boundary, and a boundary stands for its
+members. `validate` already refuses an analysis whose own relations break a
+rule. `enforce --repo-root` goes further and reads the imports in the code
+each component's evidence cites — JavaScript, TypeScript, Python and Go — so
+an import from one component's files into another's is caught as the edge it
+is, declared or not. It also lists edges the code has that the analysis never
+declared; those are not violations, but they are the relations most likely to
+be missing from the document.
+
+When two analyses of the same system exist — before and after a change, or
+two readings — `compare <base> <head> [out-dir]` reports what moved in the
+claims (components, relations, boundaries, facts, questions; which planned
+components were built) and, with an out-dir, renders archify's visual
+comparison for every architecture question both ask.
 
 ## Authoring the analysis
 

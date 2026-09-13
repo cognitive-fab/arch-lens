@@ -81,6 +81,15 @@ compose file or a JavaScript workspace, and writes `TODO` where every sentence
 goes. The validator warns on each TODO until it is replaced, so a draft cannot
 quietly become the document.
 
+**Keep it true.**
+
+> check the architecture analysis against HEAD
+
+`archlens check` re-resolves every citation and lists what changed since the
+pinned revision; `archlens enforce` checks every ruled constraint against the
+code's imports. Both exit non-zero on a finding, so they belong in CI.
+`archlens compare` says what moved between two analyses, and draws it.
+
 **Review a change against it.**
 
 > review this branch against the architecture
@@ -124,6 +133,9 @@ archlens doc       system.analysis.json ARCHITECTURE.md
 archlens ask       system.analysis.json "does X ever talk to Y?"
 archlens review    system.analysis.json --repo-root . --base main
 archlens seed      docker-compose.yml system.analysis.json
+archlens check     system.analysis.json --repo-root .        # drift: is every citation still there?
+archlens enforce   system.analysis.json --repo-root .        # do the ruled constraints hold in the code?
+archlens compare   old.analysis.json system.analysis.json docs/compare
 ```
 
 `validate` checks references and warns when the analysis is too thin to be worth
@@ -166,6 +178,10 @@ So the analysis is the artifact:
 - **A question chooses its shape.** "What are the parts" is an architecture.
   "What happens when" is a sequence, drawn from the same components and relations
   with the order added — a step the model has no relation for is refused.
+- **A constraint can carry a rule.** "Nothing downstream reaches back into the
+  database" becomes `only-via` or `no-relation` over components and boundaries,
+  refused by the validator when the analysis's own relations break it and
+  checked against the imports in the code by `enforce`.
 
 ## The worked example
 
@@ -330,6 +346,9 @@ skills/archlens/               the plugin's skill, self-contained
   src/review.mjs               a change, read against the analysis
   src/git.mjs                  the change, as git tells it
   src/seed.mjs                 a draft analysis from a compose file or a workspace
+  src/drift.mjs                is the analysis still true of the code?
+  src/diff.mjs                 what changed between two analyses
+  src/rules.mjs                constraints a machine can check, against the model and the code
   src/yaml.mjs                 enough YAML to read a compose file
   src/repair.mjs               the diagnostic-driven repair loop
   src/markdown.mjs             the same analysis, as prose

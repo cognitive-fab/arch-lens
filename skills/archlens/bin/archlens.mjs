@@ -14,13 +14,16 @@ import { compileQuestion, compileAll } from '../src/compile.mjs';
 import { repair, compactVertically } from '../src/repair.mjs';
 import { widenSequence } from '../src/sequence.mjs';
 import { renderMarkdown } from '../src/markdown.mjs';
-import { archifyRoot, deliver, visualCheck } from '../src/archify.mjs';
+import { archifyRoot, deliver, visualCheck, compare } from '../src/archify.mjs';
 import { injectBrief } from '../src/brief.mjs';
 import { ask, renderAsk } from '../src/ask.mjs';
 import { review, renderReview } from '../src/review.mjs';
 import { changesIn, existsIn } from '../src/git.mjs';
 import { seedCompose, seedWorkspaces } from '../src/seed.mjs';
 import { parseYaml } from '../src/yaml.mjs';
+import { checkDrift, renderDrift } from '../src/drift.mjs';
+import { diffAnalyses, renderDiff } from '../src/diff.mjs';
+import { checkRulesAgainstModel, checkRulesAgainstCode, renderEnforce } from '../src/rules.mjs';
 
 const USAGE = `archlens — an architecture analysis, rendered
 
@@ -55,6 +58,23 @@ const USAGE = `archlens — an architecture analysis, rendered
       services and what each waits for, or workspace packages and what each
       imports. Every responsibility is a TODO the validator will keep warning
       about until it is written.
+
+  archlens check <analysis.json> --repo-root <dir> [--json]
+      Is the analysis still true of the code? Re-resolve every evidence
+      reference against the working tree and, when the pinned revision is
+      available, report what changed since it. Exits 1 when a citation points
+      at nothing — the check to run in CI.
+
+  archlens compare <base.analysis.json> <head.analysis.json> [out-dir] [--repo-root <dir>]
+      What changed between two analyses: components, relations, boundaries,
+      facts and questions, added, removed and changed. With an out-dir, also
+      render archify's visual comparison for every architecture question the
+      two have in common.
+
+  archlens enforce <analysis.json> [--repo-root <dir>] [--json]
+      Check every constraint that carries a rule: against the analysis's own
+      relations, and with --repo-root against the imports in the code each
+      component's evidence cites. Exits 1 on a violation.
 
   archlens doctor
       Report where archify was found and whether it runs.
@@ -91,6 +111,9 @@ async function main() {
     case 'ask': return cmdAsk();
     case 'review': return cmdReview();
     case 'seed': return cmdSeed();
+    case 'check': return cmdCheck();
+    case 'compare': return cmdCompare();
+    case 'enforce': return cmdEnforce();
     case 'doctor': return cmdDoctor();
     case '--help': case '-h': case undefined: return say(USAGE);
     default: return fail(`unknown command "${command}"\n\n${USAGE}`);
@@ -403,6 +426,83 @@ function gitRootOf(dir) {
   } catch {
     return null;
   }
+}
+
+function cmdCheck() {
+  const { analysis } = readAnalysis();
+  const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : null;
+  if (!repoRoot) fail('--repo-root is required: the evidence is resolved there');
+  const result = checkDrift(analysis, repoRoot);
+  if (has('json')) {
+    const strip = (list) => list.map(({ owner, evidence, ...rest }) => ({ ...rest, line: evidence.line, end_line: evidence.end_line }));
+    return say(JSON.stringify({ ...result, gone: strip(result.gone), moved: strip(result.moved), built: strip(result.built) }, null, 2));
+  }
+  process.stdout.write(renderDrift(result));
+  if (!result.ok) process.exit(1);
+}
+
+function cmdCompare() {
+  const [basePath, headPath, outDir] = positional;
+  if (!basePath || !headPath) fail('two analysis files are required: the base and the head');
+  const base = loadAnalysis(resolve(basePath)).analysis;
+  const head = loadAnalysis(resolve(headPath)).analysis;
+  const result = diffAnalyses(base, head);
+  process.stdout.write(renderDiff(result, base, head));
+  if (!outDir) return;
+
+  // The visual comparison is archify's, one per architecture question both
+  // analyses ask. A question only one of them asks has nothing to compare to.
+  const dir = resolve(outDir);
+  mkdirSync(dir, { recursive: true });
+  const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : undefined;
+  const shared = head.questions.filter((q) => (q.shape ?? 'architecture') === 'architecture' && base.questions.some((b) => b.id === q.id));
+  let failures = 0;
+  for (const q of shared) {
+    const a = compileQuestion(base, q.id).spec;
+    const b = compileQuestion(head, q.id).spec;
+    const aPath = join(dir, `${q.id}.base.architecture.json`);
+    const bPath = join(dir, `${q.id}.head.architecture.json`);
+    const html = join(dir, `${q.id}.compare.html`);
+    // The comparator wants two specifications that pass, so each side goes
+    // through the same repair loop a render would give it.
+    const fixed = [repair(a, aPath, { repoRoot }), repair(b, bPath, { repoRoot })];
+    if (!fixed.every((r) => r.ok)) {
+      failures += 1;
+      say(`— ${q.id}: FAILED the ${fixed[0].ok ? 'head' : 'base'} specification did not pass the renderer's checks`);
+      continue;
+    }
+    const report = compare(aPath, bPath, html, { repoRoot });
+    if (!report.ok) {
+      failures += 1;
+      say(`— ${q.id}: FAILED ${report.error ?? (report.diagnostics ?? []).map((d) => d.message).join('; ') ?? 'unknown error'}`);
+      continue;
+    }
+    const s = report.summary ?? {};
+    const c = s.components ?? {};
+    const k = s.connections ?? {};
+    say(`— ${q.id}: components +${c.added ?? 0} -${c.removed ?? 0} ~${c.changed ?? 0}, connections +${k.added ?? 0} -${k.removed ?? 0} ~${k.changed ?? 0}`);
+    say(`  wrote    ${html}`);
+  }
+  if (!shared.length) say('no architecture question is asked by both analyses, so there is nothing to draw');
+  if (failures) process.exit(2);
+}
+
+function cmdEnforce() {
+  const { analysis } = readAnalysis();
+  const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : null;
+  const model = checkRulesAgainstModel(analysis);
+  const code = repoRoot ? checkRulesAgainstCode(analysis, repoRoot) : null;
+  if (has('json')) {
+    return say(JSON.stringify({
+      model: model.map((m) => ({ fact: m.fact.id, from: m.relation.from, to: m.relation.to, message: m.message })),
+      code: code && {
+        ...code,
+        violations: code.violations.map((v) => ({ fact: v.fact.id, from: v.from, to: v.to, sites: v.sites })),
+      },
+    }, null, 2));
+  }
+  process.stdout.write(renderEnforce(model, code, analysis));
+  if (model.length || code?.violations.length) process.exit(1);
 }
 
 function cmdDoctor() {

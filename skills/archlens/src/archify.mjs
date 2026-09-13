@@ -96,3 +96,9 @@ export const deliver = (specPath, outPath, { repoRoot, type = 'architecture' } =
   ]).report;
 
 export const visualCheck = (htmlPath) => runArchify(['visual-check', htmlPath, '--json']).report;
+
+export const compare = (basePath, headPath, outPath, { repoRoot } = {}) =>
+  runArchify([
+    'compare', 'architecture', basePath, headPath, outPath, '--quality', 'showcase', '--json',
+    ...(repoRoot ? ['--repo-root', repoRoot] : []),
+  ]).report;

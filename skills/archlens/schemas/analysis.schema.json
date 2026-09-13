@@ -480,6 +480,59 @@
           },
           "evidence": {
             "$ref": "#/$defs/evidenceList"
+          },
+          "rule": {
+            "description": "Constraint only. A machine-checkable form of the claim, about which parts may reach which. Checked against the analysis's own relations by validate, and against imports in the cited code by enforce. Ids may name a component or a boundary; a boundary stands for all its members.",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "from",
+                  "to"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "no-relation"
+                  },
+                  "from": {
+                    "$ref": "#/$defs/id",
+                    "description": "Nothing in here…"
+                  },
+                  "to": {
+                    "$ref": "#/$defs/id",
+                    "description": "…reaches anything in here."
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "to",
+                  "via"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "only-via"
+                  },
+                  "to": {
+                    "$ref": "#/$defs/id",
+                    "description": "Everything that reaches this…"
+                  },
+                  "via": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/id"
+                    },
+                    "description": "…comes from one of these, or from inside it."
+                  }
+                }
+              }
+            ]
           }
         }
       }

@@ -23,6 +23,12 @@ import { review, renderReview } from '../skills/archlens/src/review.mjs';
 import { hunksOf } from '../skills/archlens/src/git.mjs';
 import { seedCompose, seedWorkspaces } from '../skills/archlens/src/seed.mjs';
 import { parseYaml } from '../skills/archlens/src/yaml.mjs';
+import { checkDrift, renderDrift } from '../skills/archlens/src/drift.mjs';
+import { diffAnalyses, renderDiff } from '../skills/archlens/src/diff.mjs';
+import { checkRulesAgainstModel, checkRulesAgainstCode, importsIn, resolveImport, renderEnforce } from '../skills/archlens/src/rules.mjs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const example = JSON.parse(readFileSync(join(here, '..', 'skills', 'archlens', 'examples', 'litestream.analysis.json'), 'utf8'));
@@ -592,4 +598,156 @@ test('a flow mapping as a list item is a mapping, not a key', () => {
 test('an apostrophe inside a plain value does not swallow the comment after it', () => {
   assert.deepEqual(parseYaml("command: echo it's fine # comment\n"), { command: "echo it's fine" });
   assert.deepEqual(parseYaml("a: 'x # y'\nb: [\"p # q\", r]\n"), { a: 'x # y', b: ['p # q', 'r'] });
+});
+
+// --- drift ------------------------------------------------------------------------
+
+/** A throwaway repository with one commit, returning its root and that commit's sha. */
+function repoWith(files) {
+  const root = mkdtempSync(join(tmpdir(), 'archlens-'));
+  const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  git('init', '-q');
+  git('config', 'user.email', 't@example.com');
+  git('config', 'user.name', 'T');
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(join(root, dirname(path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  }
+  git('add', '-A');
+  git('commit', '-q', '-m', 'pin');
+  return { root, git, sha: git('rev-parse', 'HEAD').trim() };
+}
+
+test('a citation that still resolves and has not changed is fine; one that moved is listed; one that vanished is gone', () => {
+  const { root, git, sha } = repoWith({ 'src/a.js': 'one\ntwo\n', 'src/b.js': 'x\n', 'src/c.js': 'y\n' });
+  const doc = minimal();
+  doc.system.repository = { url: 'https://github.com/x/y', revision: sha };
+  doc.components[0].evidence = [{ path: 'src/a.js' }, { path: 'src/c.js' }];
+  doc.components[1].evidence = [{ path: 'src/b.js', line: 1 }];
+  writeFileSync(join(root, 'src/a.js'), 'one\ntwo\nthree\n');
+  rmSync(join(root, 'src/c.js'));
+  git('add', '-A');
+  git('commit', '-q', '-m', 'move');
+  const result = checkDrift(doc, root);
+  assert.equal(result.ahead, 1);
+  assert.deepEqual(result.moved.map((m) => m.path), ['src/a.js']);
+  assert.deepEqual(result.gone.map((g) => [g.path, g.reason]), [['src/c.js', 'deleted since the pinned revision']]);
+  assert.equal(result.fine, 1);
+  assert.equal(result.ok, false);
+  assert.match(renderDrift(result), /1 commit\(s\) past it/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('a cited line past the end of the file is gone, and a planned component with resolving evidence is flagged', () => {
+  const { root, sha } = repoWith({ 'src/a.js': 'one\n' });
+  const doc = minimal();
+  doc.system.repository = { url: 'https://github.com/x/y', revision: sha };
+  doc.components[0].evidence = [{ path: 'src/a.js', line: 1, end_line: 5 }];
+  doc.components[1].status = 'planned';
+  doc.components[1].evidence = [{ path: 'src/a.js' }];
+  const result = checkDrift(doc, root);
+  assert.match(result.gone[0].reason, /cites lines 1–5 but the file has 2/);
+  assert.deepEqual(result.built.map((b) => b.what), ['b']);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('without a pinned revision, only existence is checked and the report says so', () => {
+  const { root } = repoWith({ 'src/a.js': 'one\n' });
+  const doc = minimal();
+  doc.components[0].evidence = [{ path: 'src/a.js' }];
+  const result = checkDrift(doc, root);
+  assert.equal(result.pinned, null);
+  assert.equal(result.ok, true);
+  assert.match(renderDrift(result), /names no repository revision/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// --- comparing two analyses --------------------------------------------------------
+
+test('the difference between two analyses is in the claims: added, removed, changed, promoted', () => {
+  const base = minimal();
+  const head = minimal();
+  head.components.push({ id: 'c', name: 'C', kind: 'store', responsibility: 'Keeps things.', status: 'planned' });
+  head.components[1].status = 'built';
+  base.components[1].status = 'partial';
+  head.relations.push({ from: 'b', to: 'c', mechanism: 'database', summary: 'writes', what_crosses: 'Rows.' });
+  head.relations[0].what_crosses = 'A request, now with a deadline.';
+  head.questions[0].involves.push('c');
+  const d = diffAnalyses(base, head);
+  assert.deepEqual(d.components.added.map((c) => c.id), ['c']);
+  assert.deepEqual(d.promoted.map((c) => c.id), ['b']);
+  assert.deepEqual(d.relations.added.map((r) => `${r.from}>${r.to}`), ['b>c']);
+  assert.deepEqual(d.relations.changed[0].fields.map((f) => f.field), ['what_crosses']);
+  assert.deepEqual(d.questions.changed[0].involves, { added: ['c'], removed: [] });
+  const text = renderDiff(d, base, head);
+  assert.match(text, /Built since the base analysis:\n  B/);
+  assert.match(text, /now draws: C/);
+});
+
+test('two identical analyses have no difference', () => {
+  assert.equal(diffAnalyses(minimal(), minimal()).same, true);
+  assert.match(renderDiff(diffAnalyses(example, example), example, example), /No difference/);
+});
+
+// --- constraints a machine can check -----------------------------------------------
+
+const ruled = () => {
+  const doc = minimal();
+  doc.components.push({ id: 'c', name: 'C', kind: 'store', responsibility: 'Keeps things.', evidence: [{ path: 'src/c' }] });
+  doc.components[0].evidence = [{ path: 'src/a' }];
+  doc.components[1].evidence = [{ path: 'src/b' }];
+  doc.relations.push({ from: 'b', to: 'c', mechanism: 'database', summary: 'writes', what_crosses: 'Rows.' });
+  doc.facts = [{ id: 'store-via-b', kind: 'constraint', claim: 'Only B touches the store', rule: { kind: 'only-via', to: 'c', via: ['b'] } }];
+  return doc;
+};
+
+test('a rule the analysis itself breaks is a validation error, not a warning', () => {
+  const doc = ruled();
+  assert.equal(validateAnalysis(doc).ok, true);
+  doc.relations.push({ from: 'a', to: 'c', mechanism: 'database', summary: 'peeks', what_crosses: 'Rows.' });
+  const { ok, errors } = validateAnalysis(doc);
+  assert.equal(ok, false);
+  assert.match(errors[0].message, /allows "c" to be reached only via b/);
+  assert.equal(checkRulesAgainstModel(doc).length, 1);
+});
+
+test('a rule that names nothing the analysis declares is an error', () => {
+  const doc = ruled();
+  doc.facts[0].rule = { kind: 'no-relation', from: 'a', to: 'ghost' };
+  assert.match(validateAnalysis(doc).errors[0].message, /neither a component nor a boundary/);
+});
+
+test('a boundary in a rule stands for all its members', () => {
+  const doc = ruled();
+  doc.boundaries = [{ id: 'data', kind: 'trust', label: 'Data', claim: 'Holds state.', contains: ['c'] }];
+  doc.facts[0].rule = { kind: 'no-relation', from: 'a', to: 'data' };
+  assert.equal(validateAnalysis(doc).ok, true);
+  doc.relations.push({ from: 'a', to: 'c', mechanism: 'database', summary: 'peeks', what_crosses: 'Rows.' });
+  assert.match(validateAnalysis(doc).errors[0].message, /forbids/);
+});
+
+test('imports are read from JavaScript, Python and Go, and resolved to files in the repository', () => {
+  const root = mkdtempSync(join(tmpdir(), 'archlens-'));
+  mkdirSync(join(root, 'src/a'), { recursive: true });
+  mkdirSync(join(root, 'src/c'), { recursive: true });
+  writeFileSync(join(root, 'src/a/index.js'), "import x from '../c/store.js';\nconst y = require('lodash');\n");
+  writeFileSync(join(root, 'src/c/store.js'), 'export default 1;\n');
+  writeFileSync(join(root, 'src/a/tool.py'), 'from ..c import store\nimport os\n');
+  writeFileSync(join(root, 'src/c/store.py'), '');
+  writeFileSync(join(root, 'go.mod'), 'module example.com/app\n');
+  writeFileSync(join(root, 'src/a/main.go'), 'package a\nimport (\n\t"fmt"\n\t"example.com/app/src/c"\n)\n');
+  assert.deepEqual(importsIn("import x from './y';\nexport { z } from \"./z\";\nconst q = require('q');\n", 'f.js').map((i) => i.spec), ['./y', './z', 'q']);
+  assert.equal(resolveImport('../c/store.js', 'src/a/index.js', root), 'src/c/store.js');
+  assert.equal(resolveImport('lodash', 'src/a/index.js', root), null);
+  assert.equal(resolveImport('..c', 'src/a/tool.py', root), 'src/c', 'a namespace package resolves to its directory');
+  assert.equal(resolveImport('example.com/app/src/c', 'src/a/main.go', root, { goModule: 'example.com/app' }), 'src/c');
+
+  const doc = ruled();
+  doc.facts[0].rule = { kind: 'no-relation', from: 'a', to: 'c' };
+  const result = checkRulesAgainstCode(doc, root);
+  assert.equal(result.violations.length, 1, 'a imports c from three languages, and the rule forbids it');
+  assert.deepEqual(result.violations[0].sites.map((s) => s.file).sort(), ['src/a/index.js', 'src/a/main.go', 'src/a/tool.py']);
+  assert.match(renderEnforce([], result, doc), /The code breaks a constraint/);
+  assert.match(renderEnforce([], result, doc), /does not declare/, 'a -> c is an edge the analysis never declared');
+  rmSync(root, { recursive: true, force: true });
 });

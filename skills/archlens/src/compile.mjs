@@ -227,6 +227,9 @@ export function compileQuestion(analysis, questionId, options = {}) {
   const connections = relations.map((r) => {
     const route = placed.routes.get(`${r.from}>${r.to}`);
     const spec = {
+      // A stable id, so two renders of the same analysis can be compared edge
+      // by edge rather than by position.
+      id: `${r.from}--${r.to}`,
       from: r.from,
       to: r.to,
       label: edgeLabel(r),

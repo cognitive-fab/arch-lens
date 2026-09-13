@@ -390,6 +390,20 @@
       "kind": "tradeoff",
       "claim": "Losing the destination costs recovery, not uptime",
       "because": "the database keeps serving; what is gone is the ability to rebuild it elsewhere"
+    },
+    {
+      "id": "sqlite-only-via-db",
+      "kind": "constraint",
+      "claim": "Only DB and the restore command touch SQLite's files",
+      "because": "every other component reaches the database, if at all, through DB; nothing downstream of the replica has a path back into it",
+      "rule": {
+        "kind": "only-via",
+        "to": "sqlite",
+        "via": [
+          "db",
+          "cli"
+        ]
+      }
     }
   ],
   "questions": [
@@ -519,7 +533,8 @@
       ],
       "facts": [
         "sqlite-api",
-        "lock-table"
+        "lock-table",
+        "sqlite-only-via-db"
       ],
       "omits": "Everything past the replica. Nothing downstream can reach back into the database.",
       "context": "A background process reading a database another program is writing to is the classic way to corrupt it. Litestream runs exactly that way, on production databases, and its central claim is that it cannot damage them. The claim is worth understanding precisely, because it comes from what Litestream refuses to do rather than from anything clever it does.",
