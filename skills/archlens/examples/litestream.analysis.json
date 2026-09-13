@@ -419,6 +419,89 @@
       "narrative": "Start at the bottom left, with the two files that belong to SQLite. Your application writes to the SQLite database through SQLite's normal API. In write-ahead-log mode, SQLite does not change the database file on each commit; it appends the changed pages to a separate write-ahead log and only later folds them back into the main file in a step called a checkpoint. That log is the only thing Litestream watches.\n\nDB is Litestream's view of one database. Once a second it looks at the log, and when it sees frames past the last position it recorded, it reads them. These are pages SQLite has already committed, so DB is never reading a half-finished transaction. It packs the frames for a range of transactions into a transaction file — an LTX file — and hands it to the Replica. DB is also the component that decides when SQLite should checkpoint, because a checkpoint truncates the log Litestream is reading from, and it has to be sure it has read everything first.\n\nThe Replica runs its own loop on a one-second interval. It takes whatever transaction files DB has produced since its last sync and pushes them through the Replica client, which speaks whichever destination protocol was configured. The Destination sees plain objects: files put, listed and occasionally fetched back. It never sees SQL, and nothing at the destination can reach back into your database.\n\nThe thing to hold on to is what is not on the diagram: a path from the commit to the destination. Your application's commit returns as soon as SQLite has written the log. Everything Litestream does happens afterwards, on its own clock. If the destination is slow or unreachable, transaction files queue locally and the application does not notice. That is a deliberate trade — the last second of writes can be lost — in exchange for replication that cannot make your application wait."
     },
     {
+      "id": "tick",
+      "title": "One second in the life of a replica",
+      "ask": "What happens, in order, between one monitor tick and the next?",
+      "shape": "sequence",
+      "context": "The architecture question shows which parts touch which. It cannot show that the work happens in two loops that never wait for each other, or that the checkpoint is a separate, rarer event on the same lifeline. Ordering those is the whole point of this picture.",
+      "answer": "DB reads whatever SQLite has committed since the last tick and hands it to the replica; the replica pushes it on its own interval. A checkpoint, when one is due, is asked of SQLite rather than performed.",
+      "involves": [
+        "dbfile",
+        "wal",
+        "db",
+        "replica",
+        "client",
+        "storage"
+      ],
+      "highlight": [
+        "db",
+        "replica"
+      ],
+      "steps": [
+        {
+          "from": "db",
+          "to": "wal",
+          "says": "read frames past last position",
+          "phase": "Read",
+          "note": "Only frames SQLite has already committed; a half-written transaction is never visible here."
+        },
+        {
+          "from": "wal",
+          "to": "db",
+          "kind": "return",
+          "says": "committed page frames",
+          "phase": "Read"
+        },
+        {
+          "from": "db",
+          "to": "replica",
+          "says": "one LTX for this range",
+          "phase": "Read",
+          "note": "The encoded pages for the transactions read this tick, as a level-0 transaction file."
+        },
+        {
+          "from": "db",
+          "to": "dbfile",
+          "says": "checkpoint, if due",
+          "kind": "async",
+          "phase": "Checkpoint",
+          "note": "A PRAGMA through SQLite's API, PASSIVE unless the log has grown past the truncate threshold. Skipped on most ticks."
+        },
+        {
+          "from": "replica",
+          "to": "client",
+          "says": "sync pending files",
+          "phase": "Push"
+        },
+        {
+          "from": "client",
+          "to": "storage",
+          "says": "put transaction file",
+          "phase": "Push"
+        },
+        {
+          "from": "storage",
+          "to": "client",
+          "kind": "return",
+          "says": "stored",
+          "phase": "Push"
+        },
+        {
+          "from": "client",
+          "to": "replica",
+          "kind": "return",
+          "says": "position reached",
+          "phase": "Push",
+          "note": "The replica records how far the destination has caught up, so the next sync starts from there."
+        }
+      ],
+      "facts": [
+        "not-in-write-path"
+      ],
+      "omits": "The application's own commit, which is not a Litestream step, and everything the compactor does later.",
+      "narrative": "Read the lifelines left to right first: SQLite's two files, then Litestream's DB and Replica, then the client and the destination. Nothing on the left ever receives a write from the right; the arrows that reach SQLite's files are reads and one request for a checkpoint.\n\nThe Read phase is one monitor tick. DB looks at the write-ahead log for frames past the position it recorded last time, gets back only pages SQLite has committed, and packs them into a single transaction file for that range. It hands the file to the Replica and is done: the tick does not wait for anything downstream.\n\nThe Checkpoint phase is on the same lifeline but on a different clock. When the log is large enough or enough time has passed, DB asks SQLite to checkpoint through a PRAGMA. It is drawn dashed because DB does not wait for it and because most ticks skip it entirely. SQLite does the copying; Litestream never touches the database file.\n\nThe Push phase is the Replica's own loop, on its own one-second interval. It takes the transaction files DB has produced since its last sync and sends them through the client to the destination, one object each. The reply that matters is the last one: the position the destination has reached, which the replica records so that the next push starts from there and a restore knows what is contiguous.\n\nTwo things the picture makes visible that the architecture could not: the Read and Push phases are separate loops joined only by files on disk, and the application's commit is not on the diagram at all, because it finished before the first arrow."
+    },
+    {
       "id": "safety",
       "title": "Why replicating cannot corrupt the database",
       "ask": "A background process is touching a live database. Why is that safe?",

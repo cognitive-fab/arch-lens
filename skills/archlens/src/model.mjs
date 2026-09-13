@@ -31,6 +31,8 @@ const MECHANISMS = new Set([
 const BOUNDARY_KINDS = new Set(['trust', 'process', 'network', 'deployment', 'licence', 'ownership']);
 const STATUSES = new Set(['built', 'partial', 'planned']);
 const FACT_KINDS = new Set(['doctrine', 'guarantee', 'constraint', 'tradeoff', 'risk']);
+const SHAPES = new Set(['architecture', 'sequence']);
+const STEP_KINDS = new Set(['call', 'return', 'async']);
 
 /** A problem the caller can print. `where` is a JSON-ish path into the document. */
 const problem = (severity, where, message, fix) => ({ severity, where, message, ...(fix ? { fix } : {}) });
@@ -228,6 +230,7 @@ export function validateAnalysis(doc) {
     for (const id of q.highlight || []) if (!known(id)) err(`${at}.highlight`, `unknown component "${id}"`);
     for (const id of q.facts || []) if (!factIds.has(id)) err(`${at}.facts`, `unknown fact "${id}"`);
     if (!q.answer) warn(`${at}.answer`, `question "${q.id}" has no answer, so its diagram will lead with nothing`);
+    validateShape(q, at, relations, err, warn);
   });
 
   // A component no question involves will never be drawn. That is allowed —
@@ -240,6 +243,50 @@ export function validateAnalysis(doc) {
   }
 
   return { ok: errors.length === 0, errors, warnings };
+}
+
+/**
+ * A sequence is a projection of the same relations, in an order. So every step
+ * has to run along a relation the analysis declares — forwards for a call, in
+ * either direction for a reply — or the picture would show an exchange the
+ * model says never happens, and nothing downstream could tell.
+ */
+function validateShape(q, at, relations, err, warn) {
+  if (q.shape !== undefined && !SHAPES.has(q.shape)) {
+    return err(`${at}.shape`, `unknown shape ${JSON.stringify(q.shape)}`, `use one of: ${[...SHAPES].join(', ')}`);
+  }
+  if (q.shape !== 'sequence') {
+    if (q.steps !== undefined) warn(`${at}.steps`, `question "${q.id}" lists steps but is not a sequence, so they are ignored`, 'set shape to "sequence"');
+    return;
+  }
+  if (!Array.isArray(q.steps) || q.steps.length === 0) {
+    return err(`${at}.steps`, `sequence "${q.id}" has no steps`, 'list the exchanges in order, each along a declared relation');
+  }
+  const involved = new Set(Array.isArray(q.involves) ? q.involves : []);
+  const edge = (a, b) => relations.some((r) => r.from === a && r.to === b);
+  q.steps.forEach((step, j) => {
+    const here = `${at}.steps[${j}]`;
+    if (!isObject(step)) return err(here, 'step must be an object');
+    for (const end of ['from', 'to']) {
+      if (!involved.has(step[end])) err(`${here}.${end}`, `step ${end} "${step[end]}" is not among the components this question involves`);
+    }
+    if (step.from === step.to) err(here, `step "${step.from}" -> "${step.to}" is a self-message, which the renderer cannot draw`);
+    if (step.kind !== undefined && !STEP_KINDS.has(step.kind)) err(`${here}.kind`, `unknown step kind ${JSON.stringify(step.kind)}`, `use one of: ${[...STEP_KINDS].join(', ')}`);
+    if (step.says !== undefined && !isStr(step.says, 1, 34)) err(`${here}.says`, 'says must be at most 34 characters — it is the message label');
+    if (step.phase !== undefined && !isStr(step.phase, 1, 24)) err(`${here}.phase`, 'phase must be at most 24 characters');
+    const forward = edge(step.from, step.to);
+    const backward = edge(step.to, step.from);
+    if (step.kind === 'return') {
+      if (!forward && !backward) err(here, `reply "${step.from}" -> "${step.to}" runs along no declared relation`, 'declare the relation it answers, or drop the step');
+      if (!step.says) err(`${here}.says`, 'a reply must say what it carries; there is no relation summary to fall back on');
+    } else if (!forward) {
+      err(here, `step "${step.from}" -> "${step.to}" runs along no declared relation`,
+        backward ? 'the relation is declared the other way round; mark this step kind "return" or reverse it' : 'add the relation to the analysis first');
+    }
+  });
+  if (q.steps.length > 14) {
+    warn(`${at}.steps`, `sequence "${q.id}" has ${q.steps.length} steps; past about 14 the labels fall below the readable floor`, 'split the question');
+  }
 }
 
 function validateEvidence(list, at, err) {

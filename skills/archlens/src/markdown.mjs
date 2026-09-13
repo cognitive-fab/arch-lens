@@ -57,7 +57,8 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
     }
     const diagram = diagrams.get(q.id);
     if (diagram) {
-      w(`[Open the diagram](${diagram}) — ${q.involves.length} components.`);
+      const noun = q.shape === 'sequence' ? 'participants' : 'components';
+      w(`[Open the diagram](${diagram}) — ${q.involves.length} ${noun}.`);
       w();
     }
     const parts = q.involves.map((id) => idx.components.get(id)).filter(Boolean);
@@ -70,6 +71,29 @@ export function renderMarkdown(analysis, { diagrams = new Map() } = {}) {
     w();
     if (q.omits) {
       w(`**Deliberately not shown.** ${q.omits}`);
+      w();
+    }
+    // A sequence's order is its content; the table above has none.
+    if (q.shape === 'sequence' && q.steps?.length) {
+      w('In order:');
+      w();
+      let phase = null;
+      q.steps.forEach((step, i) => {
+        if (step.phase && step.phase !== phase) {
+          phase = step.phase;
+          if (i > 0) w();
+          w(`*${phase}*`);
+          w();
+        }
+        const from = idx.components.get(step.from)?.name ?? step.from;
+        const to = idx.components.get(step.to)?.name ?? step.to;
+        const relation = analysis.relations.find((r) => r.from === step.from && r.to === step.to)
+          ?? analysis.relations.find((r) => r.from === step.to && r.to === step.from);
+        const says = step.says ?? relation?.summary ?? '';
+        const arrow = step.kind === 'return' ? '⇢' : '→';
+        const carries = step.note ?? (step.kind !== 'return' ? relation?.what_crosses : null);
+        w(`${i + 1}. **${from} ${arrow} ${to}** — ${says}${carries ? `. ${carries}` : ''}`);
+      });
       w();
     }
     if (q.narrative) {

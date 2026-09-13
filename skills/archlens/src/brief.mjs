@@ -48,6 +48,7 @@ export function glossaryFor(question, analysis, idx) {
     question.answer,
     question.narrative,
     question.omits,
+    ...(question.steps ?? []).map((s) => `${s.says ?? ''} ${s.note ?? ''} ${s.phase ?? ''}`),
     ...(question.involves ?? []).map((id) => {
       const c = idx?.components?.get(id);
       return c ? `${c.name} ${c.responsibility ?? ''} ${c.detail ?? ''}` : '';

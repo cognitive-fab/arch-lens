@@ -11,6 +11,7 @@ import { dirname, join, resolve } from 'node:path';
 import { loadAnalysis, validateAnalysis, index } from '../src/model.mjs';
 import { compileQuestion, compileAll } from '../src/compile.mjs';
 import { repair, compactVertically } from '../src/repair.mjs';
+import { widenSequence } from '../src/sequence.mjs';
 import { renderMarkdown } from '../src/markdown.mjs';
 import { archifyRoot, deliver, visualCheck } from '../src/archify.mjs';
 import { injectBrief } from '../src/brief.mjs';
@@ -101,7 +102,11 @@ function cmdQuestions() {
     const { spec, dropped } = compileQuestion(analysis, q.id);
     say(`${q.id}  ${q.title}`);
     say(`  asks     ${q.ask}`);
-    say(`  draws    ${spec.components.length} components, ${spec.connections.length} relations, ${(spec.boundaries || []).length} boundaries`);
+    if (spec.diagram_type === 'sequence') {
+      say(`  draws    a sequence: ${spec.participants.length} participants, ${spec.messages.length} messages, ${(spec.segments || []).length} phases`);
+    } else {
+      say(`  draws    ${spec.components.length} components, ${spec.connections.length} relations, ${(spec.boundaries || []).length} boundaries`);
+    }
     for (const d of dropped) say(`  dropped  ${d}`);
     say();
   }
@@ -131,7 +136,8 @@ function cmdRender() {
   let failures = 0;
 
   for (const target of targets) {
-    const stem = `${target.id}.architecture`;
+    const type = target.spec.diagram_type;
+    const stem = `${target.id}.${type}`;
     const specPath = join(dir, `${stem}.json`);
     const htmlPath = join(dir, `${stem}.html`);
     say(`— ${target.id}: ${target.question.title}`);
@@ -153,7 +159,7 @@ function cmdRender() {
       continue;
     }
 
-    const delivery = deliver(specPath, htmlPath, { repoRoot: repoRoot ?? undefined });
+    const delivery = deliver(specPath, htmlPath, { repoRoot: repoRoot ?? undefined, type });
     if (!delivery.ok) {
       failures += 1;
       say(`  FAILED   delivery: ${delivery.error ?? 'unknown error'}`);
@@ -170,14 +176,20 @@ function cmdRender() {
       // after delivery and fixed by pulling the rows together. One pass is not
       // always enough — a tall diagram can need three — and each attempt has to
       // re-run the repair loop, because moving rows can re-open a label
-      // collision that was already settled.
+      // collision that was already settled. A sequence owns no rows to pull;
+      // it widens instead, and the reader's fit-to-width makes it shorter.
       let check = visualCheck(htmlPath);
       for (let attempt = 1; attempt <= 3 && !check.ok; attempt += 1) {
-        say(`  browser  overflows; pulling the rows together (attempt ${attempt} of 3)`);
-        compactVertically(target.spec, 0.8);
+        if (type === 'sequence') {
+          say(`  browser  overflows; widening the sequence (attempt ${attempt} of 3)`);
+          widenSequence(target.spec, 1.15);
+        } else {
+          say(`  browser  overflows; pulling the rows together (attempt ${attempt} of 3)`);
+          compactVertically(target.spec, 0.8);
+        }
         const again = repair(target.spec, specPath, { repoRoot });
         if (!again.ok) break;
-        const redelivered = deliver(specPath, htmlPath, { repoRoot: repoRoot ?? undefined });
+        const redelivered = deliver(specPath, htmlPath, { repoRoot: repoRoot ?? undefined, type });
         if (!redelivered.ok) break;
         check = visualCheck(htmlPath);
       }
@@ -211,7 +223,7 @@ function cmdDoc() {
   const diagrams = new Map();
   if (diagramsDir) {
     for (const q of analysis.questions) {
-      const rel = `${q.id}.architecture.html`;
+      const rel = `${q.id}.${q.shape ?? 'architecture'}.html`;
       if (existsSync(join(resolve(diagramsDir), rel))) diagrams.set(q.id, rel);
     }
   }

@@ -29,6 +29,7 @@ const STALL_LIMIT = 2;
  */
 export function repair(spec, specPath, options = {}) {
   const { repoRoot, onRound } = options;
+  const type = spec.diagram_type ?? 'architecture';
   const applied = [];
   let best = Infinity;
   let stalls = 0;
@@ -36,7 +37,7 @@ export function repair(spec, specPath, options = {}) {
 
   for (let round = 1; round <= MAX_ROUNDS; round += 1) {
     writeSpec(specPath, spec);
-    report = validate(specPath, { repoRoot });
+    report = validate(specPath, { repoRoot, type });
     const diagnostics = collect(report);
     const count = diagnostics.length;
     if (onRound) onRound({ round, count, diagnostics });
@@ -57,7 +58,7 @@ export function repair(spec, specPath, options = {}) {
   }
 
   writeSpec(specPath, spec);
-  report = validate(specPath, { repoRoot });
+  report = validate(specPath, { repoRoot, type });
   return {
     ok: Boolean(report.ok),
     rounds: MAX_ROUNDS,
@@ -107,6 +108,9 @@ function collect(report) {
 
 function applyAll(spec, diagnostics) {
   const changes = [];
+  // Every fix below moves nodes and edges. A sequence has neither, and the
+  // renderer owns its rhythm, so there is nothing here to apply to one.
+  if ((spec.diagram_type ?? 'architecture') !== 'architecture') return changes;
   const touchedConnections = new Set();
   const touchedComponents = new Set();
   spec.__squeezedThisRound = false;

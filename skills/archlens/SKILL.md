@@ -82,6 +82,15 @@ question decides what is in it. Name the components the answer turns on in
 is listed on the diagram's own card, so nothing disappears silently. A question
 with no `answer` produces a diagram that leads with nothing.
 
+**A question chooses its shape.** "What are the parts" is an architecture, the
+default. "What happens when" is a sequence: set `shape` to `sequence` and list
+`steps` in order, each `from` one involved component `to` another, along a
+relation the analysis already declares. `says` is the message label; a `return`
+step must say what it carries; `phase` brackets consecutive steps; `kind: async`
+is a message nobody waits on. `involves` is the participant order. Do not force
+an order into an architecture with numbered labels, and do not draw a sequence
+for a question that has no order.
+
 **When the subject is not code, say so.** Set `system.domain` to `document` and
 the seven legend families are relabelled for prose subjects — Input, Method,
 Data, Signal, Constraint, Environment, Prior work — because "Backend" under a box

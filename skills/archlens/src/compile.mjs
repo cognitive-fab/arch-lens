@@ -12,9 +12,10 @@
 
 import { layout, detailBudget, NODE_W, NODE_H } from './layout.mjs';
 import { index } from './model.mjs';
+import { compileSequence } from './sequence.mjs';
 
 /** Twenty kinds of thing, seven boxes. Stated once, here. */
-const TYPE_OF = {
+export const TYPE_OF = {
   cli: 'frontend',
   ui: 'frontend',
   api: 'backend',
@@ -71,7 +72,7 @@ const CARD_DOT = {
   omits: 'slate',
 };
 
-const MECHANISM_HINT = {
+export const MECHANISM_HINT = {
   http: 'HTTP',
   https: 'HTTPS',
   grpc: 'gRPC',
@@ -91,7 +92,9 @@ const TRAILING = /(?:[\s,;:·+\-\/]|\b(?:a|an|and|as|at|by|for|from|in|into|of|o
 const ELSEWHERE = 'elsewhere';
 
 /**
- * Compile one question into an archify architecture specification.
+ * Compile one question into an archify specification: an architecture by
+ * default, a sequence when the question says so. The scoping rules are the same
+ * either way; what differs is whether the picture has a time axis.
  *
  * @param {object} analysis
  * @param {string} questionId
@@ -103,6 +106,7 @@ export function compileQuestion(analysis, questionId, options = {}) {
   const idx = index(analysis);
   const question = analysis.questions.find((q) => q.id === questionId);
   if (!question) throw new Error(`no question "${questionId}" in this analysis`);
+  if (question.shape === 'sequence') return compileSequence(analysis, question);
 
   const dropped = [];
   const omitted = [];
@@ -286,7 +290,7 @@ function edgeLabel(relation) {
  * Fit text to a budget on a word boundary. A trailing comma left behind by the
  * trim reads as a truncation bug rather than an abbreviation, so it goes too.
  */
-function shorten(text, budget) {
+export function shorten(text, budget) {
   if (!text) return '';
   const clean = text.replace(/\.$/, '').trim();
   if (clean.length <= budget) return clean;
@@ -388,7 +392,7 @@ function boundariesFor(analysis, inScope, dropped) {
  * facts: an omission the reader cannot see is the one thing a diagram must never
  * drop, and an earlier version of this quietly did exactly that.
  */
-function cardsFor(question, analysis, idx, omitted = []) {
+export function cardsFor(question, analysis, idx, omitted = []) {
   const cards = [];
 
   if (question.answer) {
@@ -443,7 +447,7 @@ function sentences(text) {
  * at four so the strip stays readable, and only emitted when a view would show
  * strictly fewer nodes than the diagram already does.
  */
-function viewsFor(question, analysis, inScope) {
+export function viewsFor(question, analysis, inScope) {
   const views = [];
   if (question.highlight && question.highlight.length >= 2 && question.highlight.length < inScope.size) {
     views.push({

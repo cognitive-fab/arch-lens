@@ -122,17 +122,21 @@ So the analysis is the artifact:
 - **Questions are the unit of a diagram.** One diagram per question, and the
   question decides what is in it. Everything connected but out of scope is named
   on the diagram's own card rather than vanishing.
+- **A question chooses its shape.** "What are the parts" is an architecture.
+  "What happens when" is a sequence, drawn from the same components and relations
+  with the order added — a step the model has no relation for is refused.
 
 ## The worked example
 
 `skills/archlens/examples/litestream.analysis.json` analyses
 [Litestream](https://github.com/benbjohnson/litestream), a disaster-recovery
-sidecar for SQLite, at commit `4ed7a30`. Thirteen components, two boundaries, four
-questions:
+sidecar for SQLite, at commit `4ed7a30`. Thirteen components, two boundaries, five
+questions — four architectures and one sequence:
 
 | Question | Asks |
 |---|---|
 | How a change reaches the destination | What happens between a committed transaction and an object in storage? |
+| One second in the life of a replica *(sequence)* | What happens, in order, between one monitor tick and the next? |
 | Why replicating cannot corrupt the database | A background process is touching a live database. Why is that safe? |
 | How a database is rebuilt | The machine is gone. What does it take to get the database back? |
 | Keeping it running and keeping it small | What stops the history growing forever, or two processes fighting over one bucket? |
@@ -200,6 +204,15 @@ The glossary is written once, at the top level of the analysis; each question
 shows only the terms found in its own prose and components, so the twelve-term
 Litestream glossary costs this diagram five lines.
 
+![One second in the life of a replica — a sequence: DB reads committed frames from the write-ahead log and hands one transaction file to the replica; a checkpoint is asked of SQLite asynchronously; the replica pushes pending files through the client to the destination and records the position reached](docs/images/litestream-tick.png)
+
+The same six components, asked a different question: not *which parts touch*
+but *in what order*. The analysis declares `shape: "sequence"` and eight
+`steps`, each along a relation the architecture already has — the validator
+refuses a step it cannot find an edge for. The three phases are the two loops
+and the rarer checkpoint between them, which the architecture diagram above
+cannot show at all.
+
 ![Why replicating cannot corrupt the database — the only path into the database is through SQLite's own API, taking the write lock in a table inside the database itself](docs/images/litestream-safety.png)
 
 The second. Same components, narrower question, so the destination side drops
@@ -217,10 +230,10 @@ archlens render skills/archlens/examples/litestream.analysis.json /tmp/out \
   --repo-root /tmp/litestream
 ```
 
-All four diagrams pass nine artifact checks with zero errors, contain at four
-viewports in light and dark, and carry source links verified against git. The
-render writes the screenshots above beside each HTML file, as
-`*.visual-check.<viewport>.<theme>.png`.
+All five diagrams pass nine artifact checks with zero errors and contain at
+four viewports in light and dark; the four architectures carry source links
+verified against git. The render writes the screenshots above beside each HTML
+file, as `*.visual-check.<viewport>.<theme>.png`.
 
 ## What it does for you
 
@@ -271,6 +284,7 @@ skills/archlens/               the plugin's skill, self-contained
   src/model.mjs                referential validation and the thin-analysis warnings
   src/layout.mjs               ranks, bands, lanes, ports, and the text budget
   src/compile.mjs              one question -> one archify specification
+  src/sequence.mjs             the same, for a question with an order to it
   src/repair.mjs               the diagnostic-driven repair loop
   src/markdown.mjs             the same analysis, as prose
   src/archify.mjs              where archify is, and how to run it
@@ -278,7 +292,7 @@ skills/archlens/               the plugin's skill, self-contained
   docs/GUIDE.md                the walkthrough and field reference
   examples/                    one invented, one real
 scripts/install-skill.mjs      installs the skill folder into each agent
-test/                          twenty tests over what can be wrong quietly
+test/                          the tests, over what can be wrong quietly
 ```
 
 ## Status

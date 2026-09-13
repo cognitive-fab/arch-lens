@@ -174,6 +174,44 @@ involved is listed on a *Not shown here* card, so nothing disappears silently.
 Resist one big question. Four narrow diagrams beat one that shows everything and
 explains nothing.
 
+### 5a. When the question is "what happens when", make it a sequence
+
+An architecture has no time axis. If the answer is an order of events — a save,
+a request, a restore — say so, and list the steps:
+
+```json
+{
+  "id": "save-tick",
+  "title": "A save, in order",
+  "ask": "What happens, in order, when someone hits save?",
+  "shape": "sequence",
+  "answer": "The API writes the row, replies, and only then publishes the event the indexer picks up.",
+  "involves": ["web", "api", "db", "indexer"],
+  "steps": [
+    { "from": "web", "to": "api", "says": "POST /notes", "phase": "Save" },
+    { "from": "api", "to": "db", "phase": "Save" },
+    { "from": "db", "to": "api", "kind": "return", "says": "row written", "phase": "Save" },
+    { "from": "api", "to": "web", "kind": "return", "says": "201 Created", "phase": "Save" },
+    { "from": "api", "to": "indexer", "kind": "async", "phase": "Afterwards" }
+  ]
+}
+```
+
+Every step runs along a relation the analysis already declares — forwards for a
+call, in either direction for a `return` — and the validator refuses one that
+does not, because a sequence that shows a message the model never has is a
+story, not a projection. `says` is the message label and defaults to the
+relation's `summary`; a return has no relation of its own, so it must say what
+it carries. `involves` is the participant order, left to right. Consecutive
+steps sharing a `phase` are bracketed and labelled with it. `kind: "async"`
+draws a dashed arrow for a message the sender does not wait on.
+
+What a sequence cannot carry, it reports: boundaries (a sequence has lifelines,
+not regions) and source links (the renderer verifies evidence on architecture
+diagrams only). Past about eight steps the participants lose their detail line
+so the labels stay readable, and the report says so. Past fourteen, split the
+question.
+
 ### 6. Attach the facts
 
 ```json
@@ -243,6 +281,8 @@ is usually structural:
 | Unresolved corridor or crossing diagnostics | One node joined to almost everything | Ask a narrower question |
 | Text shortened on many nodes | Too many columns for a desktop | Fewer components, or shorter `detail` |
 | `boundary "x" not drawn: only one member` | The view involves one member of a boundary | Involve another, or accept the note |
+| `step "a" -> "b" runs along no declared relation` | A sequence step the model has no edge for | Add the relation, or mark the step a `return` if it answers one |
+| `participant detail not shown` | A long sequence, widened to fit a desktop | Accept it, or split the question |
 | `could not find archify` | Renderer not installed | `npx skills add tt-a1i/archify -g`, or set `ARCHLENS_ARCHIFY` |
 
 ## Field reference
@@ -269,5 +309,10 @@ label when it fits.
 **Fact kinds**: `doctrine`, `guarantee`, `constraint`, `tradeoff`, `risk`. Each
 gets its own card colour.
 
+**Question shapes**: `architecture` (the default) draws the parts and what joins
+them; `sequence` draws `steps` in order along declared relations. Step kinds:
+`call`, `return`, `async`.
+
 **Length limits**, all enforced by the validator: `name` 40, `detail` 28,
-`summary` 34, question `title` 60, view `note` 140.
+`summary` 34, question `title` 60, step `says` 34, step `phase` 24, view `note`
+140.

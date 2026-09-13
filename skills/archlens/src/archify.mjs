@@ -79,16 +79,20 @@ export function runArchify(args, { cwd } = {}) {
   return { report, status };
 }
 
-export const validate = (specPath, { repoRoot } = {}) =>
+// `--repo-root` is evidence verification, and archify accepts it for architecture
+// diagrams only; a sequence carries no source links, so the flag is not sent.
+const evidenceArgs = (type, repoRoot) => (type === 'architecture' && repoRoot ? ['--repo-root', repoRoot] : []);
+
+export const validate = (specPath, { repoRoot, type = 'architecture' } = {}) =>
   runArchify([
-    'validate', 'architecture', specPath, '--quality', 'showcase', '--json',
-    ...(repoRoot ? ['--repo-root', repoRoot] : []),
+    'validate', type, specPath, '--quality', 'showcase', '--json',
+    ...evidenceArgs(type, repoRoot),
   ]).report;
 
-export const deliver = (specPath, outPath, { repoRoot } = {}) =>
+export const deliver = (specPath, outPath, { repoRoot, type = 'architecture' } = {}) =>
   runArchify([
-    'deliver', 'architecture', specPath, outPath, '--quality', 'showcase', '--json',
-    ...(repoRoot ? ['--repo-root', repoRoot] : []),
+    'deliver', type, specPath, outPath, '--quality', 'showcase', '--json',
+    ...evidenceArgs(type, repoRoot),
   ]).report;
 
 export const visualCheck = (htmlPath) => runArchify(['visual-check', htmlPath, '--json']).report;

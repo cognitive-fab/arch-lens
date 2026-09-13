@@ -130,10 +130,15 @@ test('a boundary with one member in view is dropped, and says so', () => {
   assert.ok(dropped.some((d) => /only one of its members/.test(d)));
 });
 
-test('every edge label fits the renderer\'s limit', () => {
+// Whatever the shape, the picture has things and the lines between them.
+const drawn = (spec) => (spec.diagram_type === 'sequence'
+  ? { things: spec.participants, lines: spec.messages }
+  : { things: spec.components, lines: spec.connections });
+
+test('every edge label fits the renderer’s limit', () => {
   for (const q of example.questions) {
-    const { spec } = compileQuestion(example, q.id);
-    for (const c of spec.connections) {
+    const { lines } = drawn(compileQuestion(example, q.id).spec);
+    for (const c of lines) {
       assert.ok(c.label.length <= 34, `"${c.label}" is ${c.label.length} characters`);
     }
   }
@@ -141,10 +146,10 @@ test('every edge label fits the renderer\'s limit', () => {
 
 test('no component is drawn twice, and every connection endpoint exists', () => {
   for (const q of example.questions) {
-    const { spec } = compileQuestion(example, q.id);
-    const ids = spec.components.map((c) => c.id);
+    const { things, lines } = drawn(compileQuestion(example, q.id).spec);
+    const ids = things.map((c) => c.id);
     assert.equal(new Set(ids).size, ids.length);
-    for (const c of spec.connections) {
+    for (const c of lines) {
       assert.ok(ids.includes(c.from), `${c.from} missing`);
       assert.ok(ids.includes(c.to), `${c.to} missing`);
     }
@@ -310,4 +315,85 @@ test('a glossary term used only on an edge still counts', () => {
   analysis.glossary = [{ term: 'Sentence pairs', definition: 'Aligned source and target sentences.' }];
   const terms = glossaryFor(analysis.questions[0], analysis, index(analysis)).map((t) => t.term);
   assert.deepEqual(terms, ['Sentence pairs']);
+});
+
+// --- sequences --------------------------------------------------------------
+
+const sequenced = () => {
+  const doc = minimal();
+  doc.relations.push({ from: 'b', to: 'a', mechanism: 'in-process call', summary: 'reports', what_crosses: 'A result.' });
+  doc.questions[0] = {
+    id: 'q', title: 'When', ask: 'What happens when A runs?', answer: 'A calls B, which reports back.',
+    shape: 'sequence', involves: ['a', 'b'],
+    steps: [
+      { from: 'a', to: 'b', phase: 'Ask' },
+      { from: 'b', to: 'a', kind: 'return', says: 'done', phase: 'Ask' },
+    ],
+  };
+  return doc;
+};
+
+test('a sequence question compiles to a sequence, with the order the analysis gave', () => {
+  const { spec } = compileQuestion(sequenced(), 'q');
+  assert.equal(spec.diagram_type, 'sequence');
+  assert.deepEqual(spec.participants.map((p) => p.id), ['a', 'b']);
+  assert.deepEqual(spec.messages.map((m) => `${m.from}>${m.to}`), ['a>b', 'b>a']);
+  assert.ok(spec.messages[1].y > spec.messages[0].y, 'messages descend in step order');
+  assert.equal(spec.messages[0].label, 'calls', 'a call without says takes the relation summary');
+  assert.equal(spec.messages[1].variant, 'return');
+  assert.deepEqual(spec.segments.map((s) => s.label), ['Ask']);
+});
+
+test('a step along no declared relation is an error, so a sequence cannot invent an exchange', () => {
+  const doc = sequenced();
+  doc.relations = doc.relations.filter((r) => r.from !== 'b');
+  doc.questions[0].steps.push({ from: 'b', to: 'a', says: 'again' });
+  const { ok, errors } = validateAnalysis(doc);
+  assert.equal(ok, false);
+  assert.match(errors[0].message, /runs along no declared relation/);
+  assert.match(errors[0].fix, /"return"/, 'the fix names the reversed relation');
+});
+
+test('a reply must say what it carries', () => {
+  const doc = sequenced();
+  delete doc.questions[0].steps[1].says;
+  const { errors } = validateAnalysis(doc);
+  assert.match(errors.map((e) => e.message).join('\n'), /reply must say/);
+});
+
+test('a step outside the question is an error', () => {
+  const doc = sequenced();
+  doc.components.push({ id: 'c', name: 'C', kind: 'store', responsibility: 'Keeps things.' });
+  doc.relations.push({ from: 'b', to: 'c', mechanism: 'database', summary: 'writes', what_crosses: 'Rows.' });
+  doc.questions[0].steps.push({ from: 'b', to: 'c' });
+  const { errors } = validateAnalysis(doc);
+  assert.match(errors[0].message, /not among the components this question involves/);
+});
+
+test('a sequence keeps its proportion by widening, never by growing taller', () => {
+  const doc = sequenced();
+  for (let i = 0; i < 10; i += 1) doc.questions[0].steps.push({ from: 'a', to: 'b', says: `call ${i}` });
+  const { spec, dropped } = compileQuestion(doc, 'q');
+  const [w, h] = spec.meta.viewBox;
+  assert.ok(w / h >= 2, `a ${w}x${h} sequence would run off a 1440x900 desktop`);
+  const last = spec.messages[spec.messages.length - 1].y;
+  assert.ok(last <= h - 85, 'the last message stays inside the renderer\'s readable timeline');
+  assert.ok(spec.participants.every((p) => !p.sublabel), 'detail is dropped rather than shipped unreadable');
+  assert.match(dropped.join('\n'), /participant detail not shown/);
+});
+
+test('a sequence says what it cannot draw: boundaries and source links', () => {
+  const { spec, dropped } = compileQuestion(example, 'tick');
+  assert.equal(spec.diagram_type, 'sequence');
+  const report = dropped.join('\n');
+  assert.match(report, /boundary "sqlite" not drawn/);
+  assert.match(report, /source links not carried/);
+  assert.ok(!('boundaries' in spec));
+});
+
+test('the document lists a sequence in order, replies marked', () => {
+  const md = renderMarkdown(sequenced());
+  assert.match(md, /In order:/);
+  assert.match(md, /1\. \*\*A → B\*\* — calls\. A request\./);
+  assert.match(md, /2\. \*\*B ⇢ A\*\* — done/);
 });
