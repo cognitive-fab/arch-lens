@@ -4,20 +4,27 @@
     "name": "Notes",
     "purpose": "A small notes service: people write notes in a browser, and search finds them again.",
     "sources": [
-      { "kind": "code", "ref": "web/, api/, worker/", "note": "a worked example for the archlens guide, not a real repository" }
+      {
+        "kind": "code",
+        "ref": "web/, api/, worker/",
+        "note": "a worked example for the archlens guide, not a real repository"
+      }
     ]
   },
-
   "boundaries": [
     {
       "id": "ours",
       "kind": "trust",
       "label": "Our infrastructure",
       "claim": "Runs code we deploy; anything outside it we can only call, not change",
-      "contains": ["api", "db", "indexer", "search"]
+      "contains": [
+        "api",
+        "db",
+        "indexer",
+        "search"
+      ]
     }
   ],
-
   "components": [
     {
       "id": "web",
@@ -25,7 +32,11 @@
       "kind": "ui",
       "detail": "React, in the browser",
       "responsibility": "Lets a person write, edit and search notes.",
-      "evidence": [{ "path": "web/src/App.tsx" }]
+      "evidence": [
+        {
+          "path": "web/src/App.tsx"
+        }
+      ]
     },
     {
       "id": "api",
@@ -33,7 +44,11 @@
       "kind": "api",
       "detail": "REST over HTTPS",
       "responsibility": "Authenticates the caller and is the only writer of note records.",
-      "evidence": [{ "path": "api/src/routes/notes.ts" }]
+      "evidence": [
+        {
+          "path": "api/src/routes/notes.ts"
+        }
+      ]
     },
     {
       "id": "db",
@@ -41,7 +56,11 @@
       "kind": "store",
       "detail": "notes, users",
       "responsibility": "Holds every note as the system of record.",
-      "evidence": [{ "path": "api/src/db/schema.sql" }]
+      "evidence": [
+        {
+          "path": "api/src/db/schema.sql"
+        }
+      ]
     },
     {
       "id": "indexer",
@@ -49,7 +68,11 @@
       "kind": "worker",
       "detail": "consumes note events",
       "responsibility": "Turns a saved note into a search document, out of the request path.",
-      "evidence": [{ "path": "worker/src/indexer.ts" }]
+      "evidence": [
+        {
+          "path": "worker/src/indexer.ts"
+        }
+      ]
     },
     {
       "id": "search",
@@ -57,7 +80,11 @@
       "kind": "store",
       "detail": "eventually consistent",
       "responsibility": "Answers full-text queries over a copy of the notes.",
-      "evidence": [{ "path": "worker/src/index-schema.ts" }]
+      "evidence": [
+        {
+          "path": "worker/src/index-schema.ts"
+        }
+      ]
     },
     {
       "id": "mail",
@@ -68,17 +95,60 @@
       "status": "planned"
     }
   ],
-
   "relations": [
-    { "from": "web", "to": "api", "mechanism": "https", "summary": "read and write notes", "what_crosses": "A session cookie and the note body. Never a database credential." },
-    { "from": "api", "to": "db", "mechanism": "database", "summary": "the system of record", "what_crosses": "Note rows, written in one transaction with the user id." },
-    { "from": "api", "to": "indexer", "mechanism": "queue", "summary": "note saved", "what_crosses": "A note id and a version. Not the note body, so a slow index cannot slow a save.", "synchronous": false },
-    { "from": "indexer", "to": "db", "mechanism": "database", "summary": "fetch the note", "what_crosses": "The note body, read at the version the event named." },
-    { "from": "indexer", "to": "search", "mechanism": "http", "summary": "index the document", "what_crosses": "The searchable text and its note id." },
-    { "from": "api", "to": "search", "mechanism": "http", "summary": "query", "what_crosses": "A query string and the caller's user id, so results stay scoped to them." },
-    { "from": "api", "to": "mail", "mechanism": "https", "summary": "send an invite", "status": "planned", "crosses": "ours", "what_crosses": "A recipient address and a signed link. Never the note body." }
+    {
+      "from": "web",
+      "to": "api",
+      "mechanism": "https",
+      "summary": "read and write notes",
+      "what_crosses": "A session cookie and the note body. Never a database credential."
+    },
+    {
+      "from": "api",
+      "to": "db",
+      "mechanism": "database",
+      "summary": "the system of record",
+      "what_crosses": "Note rows, written in one transaction with the user id."
+    },
+    {
+      "from": "api",
+      "to": "indexer",
+      "mechanism": "queue",
+      "summary": "note saved",
+      "what_crosses": "A note id and a version. Not the note body, so a slow index cannot slow a save.",
+      "synchronous": false
+    },
+    {
+      "from": "indexer",
+      "to": "db",
+      "mechanism": "database",
+      "summary": "fetch the note",
+      "what_crosses": "The note body, read at the version the event named."
+    },
+    {
+      "from": "indexer",
+      "to": "search",
+      "mechanism": "http",
+      "summary": "index the document",
+      "what_crosses": "The searchable text and its note id."
+    },
+    {
+      "from": "api",
+      "to": "search",
+      "mechanism": "http",
+      "summary": "query",
+      "what_crosses": "A query string and the caller's user id, so results stay scoped to them."
+    },
+    {
+      "from": "api",
+      "to": "mail",
+      "mechanism": "https",
+      "summary": "send an invite",
+      "status": "planned",
+      "crosses": "ours",
+      "what_crosses": "A recipient address and a signed link. Never the note body."
+    }
   ],
-
   "facts": [
     {
       "id": "one-writer",
@@ -99,27 +169,77 @@
       "because": "the queue is not a second copy of the data, so it can be drained or replayed without leaking anything"
     }
   ],
-
   "questions": [
     {
       "id": "write",
       "title": "What happens when a note is saved",
       "ask": "Where does a note go when someone hits save?",
       "answer": "The browser posts to the API, which writes the row and publishes an event. Indexing happens afterwards, so the save never waits on search.",
-      "involves": ["web", "api", "db", "indexer", "search"],
-      "highlight": ["api", "db"],
-      "facts": ["one-writer", "no-body-in-events"],
-      "omits": "Sharing and email, which no save touches."
+      "involves": [
+        "web",
+        "api",
+        "db",
+        "indexer",
+        "search"
+      ],
+      "highlight": [
+        "api",
+        "db"
+      ],
+      "facts": [
+        "one-writer",
+        "no-body-in-events"
+      ],
+      "omits": "Sharing and email, which no save touches.",
+      "context": "Saving a note is the one thing this service must never get wrong or make slow. The tension is that a saved note also has to become searchable, and search is a separate system with its own failure modes. Where the save ends and the indexing begins is the whole design.",
+      "narrative": "Start at the Web app. When someone hits save, the browser posts the note body to the API with a session cookie; it never holds a database credential, so nothing in the browser can reach Postgres directly.\n\nThe API is the only component that writes notes. It checks the session, then writes the note row and the user id in one transaction to Postgres, which is the system of record. When that transaction commits, the save is done, and the API replies to the browser.\n\nOnly then does the API publish an event to the Indexer. The event carries the note's id and version, not its body. That is deliberate: the Indexer fetches the note from Postgres at that version when it gets round to it, so a slow or stopped indexer cannot slow a save, and an event can never carry a stale body.\n\nThe Indexer turns the note into a search document and writes it to the Search index. From the browser's point of view none of this happened; from the index's point of view the note appears a moment later. The two halves of the diagram are joined only by the event, and that gap is what keeps the save fast."
     },
     {
       "id": "search",
       "title": "How search stays in step",
       "ask": "If the index is a copy, how far behind can it be?",
       "answer": "One event per save, consumed out of the request path. A note is searchable a moment after it is written, and the API scopes every query to the caller.",
-      "involves": ["api", "indexer", "db", "search"],
-      "highlight": ["indexer", "search"],
-      "facts": ["search-lags"],
-      "omits": "The browser, which never talks to the index directly."
+      "involves": [
+        "api",
+        "indexer",
+        "db",
+        "search"
+      ],
+      "highlight": [
+        "indexer",
+        "search"
+      ],
+      "facts": [
+        "search-lags"
+      ],
+      "omits": "The browser, which never talks to the index directly.",
+      "context": "The search index is a copy, not the truth. Any copy can fall behind, and a reader who finds a note missing from search needs to know whether that is a bug or the design. This question is about how far behind the copy can be, and what keeps it from being wrong rather than merely late.",
+      "narrative": "The API never writes to the Search index. It publishes one event per saved note, and the Indexer does the writing, out of the request path. So the index lags Postgres by however long it takes the Indexer to see the event, fetch the note and index it: usually well under a second, and longer only if the Indexer is down, in which case events wait and the index catches up when it returns.\n\nThe Indexer reads the note back from Postgres at the version the event named, rather than trusting anything in the event. That is why the index can be late but not wrong: it only ever indexes what the system of record actually holds.\n\nQueries go from the API to the Search index with the caller's user id attached, so results are scoped to the person asking. The browser never queries the index directly, which is what makes that scoping enforceable."
+    }
+  ],
+  "glossary": [
+    {
+      "term": "system of record",
+      "definition": "The one store whose contents are the truth. Every other copy of the data is derived from it and can be rebuilt from it."
+    },
+    {
+      "term": "event",
+      "also": [
+        "note saved"
+      ],
+      "definition": "A small message the API publishes after a save, saying which note changed and at which version. It carries no note body."
+    },
+    {
+      "term": "request path",
+      "definition": "The work that happens between a browser sending a request and getting its reply. Anything on it makes the reply slower; anything off it does not."
+    },
+    {
+      "term": "eventually consistent",
+      "definition": "A copy that is allowed to be behind the truth for a short time, but is guaranteed to catch up."
+    },
+    {
+      "term": "search document",
+      "definition": "The searchable form of a note: its text plus the note id, as the Search index stores it."
     }
   ]
 }

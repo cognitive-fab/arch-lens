@@ -919,3 +919,16 @@ test('a document link is written from where the page lives, and survives spaces 
   assert.match(briefHtml(doc.questions[0], doc, index(doc), { docBase: '../..' }), /href="\.\.\/\.\.\/docs\/paper\.pdf#page=2"/);
   assert.match(renderMarkdown(doc, { docBase: '..' }), /\]\(\.\.\/docs\/paper\.pdf#page=2\)/);
 });
+
+test('a question without context or narrative, and an analysis without a glossary, are warned about', () => {
+  const doc = minimal();
+  const messages = validateAnalysis(doc).warnings.map((w) => w.where);
+  assert.ok(messages.includes('questions[0].context'));
+  assert.ok(messages.includes('questions[0].narrative'));
+  assert.ok(messages.includes('glossary'));
+  doc.questions[0].context = 'Why this matters.';
+  doc.questions[0].narrative = 'A walks to B.';
+  doc.glossary = [{ term: 'A', definition: 'The first thing.' }];
+  const after = validateAnalysis(doc).warnings.map((w) => w.where);
+  assert.ok(!after.some((w) => /context|narrative|^glossary$/.test(w)));
+});

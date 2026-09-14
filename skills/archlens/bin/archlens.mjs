@@ -258,7 +258,7 @@ function cmdRender() {
     if (injectBrief(htmlPath, target.question, analysis, idx, { docBase })) {
       say('  brief    context, narrative and glossary added below the diagram');
     } else if (!target.question.context && !target.question.narrative) {
-      say('  brief    none — the question has no context or narrative to add');
+      say('  warning  no brief: the question has no context or narrative, so the page ends at the diagram');
     }
 
     produced.set(target.id, `${stem}.html`);

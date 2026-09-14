@@ -257,8 +257,17 @@ export function validateAnalysis(doc) {
     for (const id of q.facts || []) if (!factIds.has(id)) err(`${at}.facts`, `unknown fact "${id}"`);
     if (!q.answer) warn(`${at}.answer`, `question "${q.id}" has no answer, so its diagram will lead with nothing`);
     else if (/^TODO\b/.test(q.answer)) warn(`${at}.answer`, `question "${q.id}" still has the seed's TODO for an answer`);
+    if (!q.context) warn(`${at}.context`, `question "${q.id}" has no context, so the page opens with a title and an answer to a question the reader has not understood`,
+      'two or three sentences on what the question is about and why it matters');
+    if (!q.narrative) warn(`${at}.narrative`, `question "${q.id}" has no narrative, so the diagram carries two words per node and nothing else`,
+      'walk the diagram in order for a reader meeting the system for the first time');
     validateShape(q, at, relations, err, warn);
   });
+
+  if (questions.length && !(Array.isArray(doc.glossary) && doc.glossary.length)) {
+    warn('glossary', 'the analysis has no glossary, so a newcomer meets every term undefined',
+      'add the terms a reader new to the system will not know; each diagram shows only the ones it uses');
+  }
 
   // A component no question involves will never be drawn. That is allowed —
   // the analysis is broader than any one diagram — but it is worth saying.

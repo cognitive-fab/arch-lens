@@ -3,7 +3,7 @@ name: archlens
 description: Analyse a system's architecture into a structured, evidence-carrying model, then render that model as a set of validated interactive diagrams and a matching markdown document. Use when asked to map, diagram, document or explain the architecture of a codebase or design; to produce architecture diagrams that stay honest about what exists versus what is only designed; or to keep an architecture document and its diagrams from disagreeing. Prefer this over drawing a diagram directly.
 license: MIT
 metadata:
-  version: "0.5.1"
+  version: "0.5.2"
 ---
 
 # Archlens
@@ -39,6 +39,21 @@ analysis is the artifact and the diagram is a projection of it.
    not finished while any remains.
 2. **Write `<name>.analysis.json`** against `schemas/analysis.schema.json`. This
    is the whole job. Everything below is about doing it honestly.
+
+   A question is not finished when it has `involves` and an `answer`. Every
+   question carries, and `validate` warns when one does not:
+
+   - `answer` — the short answer, two or three sentences; the diagram's lead card.
+   - `context` — what the question is about and why it matters, before the
+     answer means anything.
+   - `narrative` — the long read for someone meeting the system for the first
+     time: walk the diagram in the order the eye takes it and say what each
+     step means. This is where the reasoning lives; the diagram cannot hold it.
+
+   And the analysis carries a top-level `glossary` of the terms a newcomer will
+   not know. Each diagram shows only the terms it uses, so a long glossary
+   costs a short diagram nothing. Write these in the same pass as the
+   components; an analysis rendered without them is a picture with a caption.
 3. **Check it**, and fix what it tells you:
 
    ```bash
@@ -55,12 +70,38 @@ analysis is the artifact and the diagram is a projection of it.
    diagnostics, delivers the HTML, checks it in a real browser, and writes a
    markdown document beside them. You never write coordinates.
 
-5. **Report** what it says: diagrams delivered, source links verified, and every
-   `dropped` line. A dropped boundary or an omitted component is a fact about the
-   diagram and belongs in your answer.
+5. **Answer, then report.** If the user asked a question, the first thing in
+   your reply is the answer to it, in plain words, taken from the analysis —
+   the same thing you wrote in that question's `answer` and `narrative`, with
+   a link to its diagram. A list of files rendered is not an answer. Then
+   report what the render said: diagrams delivered, source links verified, and
+   every `dropped` line. A dropped boundary or an omitted component is a fact
+   about the diagram and belongs in your reply too.
 
 Never hand-edit the generated `*.architecture.json`, `*.sequence.json` or
 `*.html`. They are output. Change the analysis and render again.
+
+## When invoked with a question
+
+`/archlens <question>` arrives with the question as the argument. Decide what
+it is before doing anything:
+
+- **A question about what exists**, and an analysis is already in the project:
+  answer from it with `ask` (below). Draw only if the question is
+  diagram-shaped and not yet a question in the analysis; then add it.
+- **A question about what exists**, and no analysis yet: run the loop. The
+  question becomes the first entry in `questions`, and the reply leads with
+  its answer.
+- **A design question** — "what would X look like", "can we standardise Y":
+  the answer is a proposal, and the analysis is where a proposal is honest.
+  Components the code does not have are `planned`; the `answer` says what you
+  propose and the `narrative` says why and what it would replace; a
+  `constraint` or `tradeoff` fact carries what the proposal commits to. Say in
+  `system.sources` that the planned parts come from this conversation, not
+  from the code. The reply leads with the proposal, in words.
+
+In every case the question the user typed is answered in the reply, not only
+in a file.
 
 ## Answering a question without drawing
 

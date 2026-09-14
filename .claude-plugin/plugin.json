@@ -1,6 +1,6 @@
 {
   "name": "archlens",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Turn a codebase or an architecture document into a structured, evidence-carrying analysis, then compile that analysis into validated interactive diagrams and a matching markdown document. Ask \"map this architecture with archlens\", point it at a design document as the only source, or ask one question with /archlens <question> to get a single diagram — an architecture, or a sequence when the question is about an order of events — that answers it; with an analysis in place, plain questions are answered from it with evidence, or refused when it does not cover them; a change can be reviewed against the analysis, a first draft seeded from a compose file or a workspace, drift and ruled constraints checked in CI, and two analyses compared. One diagram per question, source links verified against git, and everything the picture had to drop reported rather than hidden. Requires the archify renderer (npx skills add tt-a1i/archify -g).",
   "author": {
     "name": "Cognitive Fab"

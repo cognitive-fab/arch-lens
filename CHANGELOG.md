@@ -3,6 +3,23 @@
 What changed in arch-lens, newest first. Versions are the plugin's; the
 marketplace offers an update whenever one is bumped.
 
+## 0.5.2 — 2026-09-14
+
+The prose is part of the job, and the question gets answered.
+
+- `validate` warns on a question with no `context` or `narrative`, and on an
+  analysis with no `glossary`; `render` prints a warning, not a quiet note,
+  when a page ends at the diagram. Reported from a run where Claude wrote the
+  components and rendered without any of the prose.
+- SKILL.md's loop now lists what a finished question carries, and step 5 is
+  "answer, then report": when the user asked a question, the reply leads
+  with its answer from the analysis, not with the list of files rendered.
+- A new "When invoked with a question" section says what to do with a
+  question about what exists, with or without an analysis, and with a design
+  question ("what would X look like") — planned components, the proposal in
+  `answer` and `narrative`, the reply leading with the proposal.
+- The notes-app example carries context, narrative and a glossary.
+
 ## 0.5.1 — 2026-09-13
 
 Fixes from a review of 0.3.0–0.5.0.
