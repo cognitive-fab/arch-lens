@@ -396,6 +396,13 @@ test('a sequence keeps its proportion by widening, never by growing taller', () 
   assert.match(dropped.join('\n'), /participant detail not shown/);
 });
 
+test('a short sequence is still tall enough for the renderer', () => {
+  const { spec } = compileQuestion(sequenced(), 'q');
+  const [w, h] = spec.meta.viewBox;
+  assert.ok(h >= 480, `archify refuses a ${h}-unit-tall viewBox`);
+  assert.ok(w / h >= 2, `a ${w}x${h} sequence would run off a 1440x900 desktop`);
+});
+
 test('a sequence says what it cannot draw: boundaries and source links', () => {
   const { spec, dropped } = compileQuestion(example, 'tick');
   assert.equal(spec.diagram_type, 'sequence');

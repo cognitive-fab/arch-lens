@@ -3,6 +3,16 @@
 What changed in arch-lens, newest first. Versions are the plugin's; the
 marketplace offers an update whenever one is bumped.
 
+## 0.5.3 — 2026-09-19
+
+A short sequence renders.
+
+- The sequence compiler now clamps the viewBox height to 480, archify's
+  minimum. A sequence of six or fewer messages came out shorter than that,
+  the repair loop has no rule for "too short", and the render was abandoned
+  with `/meta/viewBox/1 must be >= 480`. The width follows the height, so
+  the proportion is unchanged. Reported from Puffin's Architecture tab.
+
 ## 0.5.2 — 2026-09-14
 
 The prose is part of the job, and the question gets answered.

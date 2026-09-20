@@ -32,6 +32,8 @@ const BOTTOM = 100; // the renderer keeps the last ~85 units for the lifeline fe
  */
 const MIN_ASPECT = 2.05;
 const MIN_WIDTH = 820;
+/** archify refuses a viewBox shorter than this, and a short exchange makes one. */
+const MIN_HEIGHT = 480;
 const PER_PARTICIPANT = 140;
 
 /**
@@ -133,7 +135,7 @@ export function compileSequence(analysis, question) {
   }
 
   // --- proportion -----------------------------------------------------------
-  const height = ys[ys.length - 1] + BOTTOM;
+  const height = Math.max(MIN_HEIGHT, ys[ys.length - 1] + BOTTOM);
   const width = Math.max(MIN_WIDTH, question.involves.length * PER_PARTICIPANT, Math.ceil(height * MIN_ASPECT));
 
   const withDetail = width <= DETAIL_MAX_WIDTH;
