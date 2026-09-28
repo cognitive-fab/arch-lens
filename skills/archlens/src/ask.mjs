@@ -182,7 +182,7 @@ export function ask(analysis, question) {
     unmatched,
     coverage,
     idx,
-    empty: components.length + relations.length + facts.length + questions.length === 0,
+    empty: components.length + relations.length + facts.length + questions.length + boundaries.length === 0,
   };
 }
 

@@ -104,8 +104,8 @@ export function validateAnalysis(doc) {
       warn(`${at}.responsibility`, `"${c.name}" still has the seed's TODO for a responsibility`,
         'replace it with one sentence saying what the component is answerable for');
     }
-    const conjunctions = (c.responsibility?.match(/ and /g) || []).length;
-    if (conjunctions >= 2 || (c.responsibility && c.responsibility.length > 160)) {
+    const conjunctions = isStr(c.responsibility) ? (c.responsibility.match(/ and /g) || []).length : 0;
+    if (conjunctions >= 2 || (isStr(c.responsibility) && c.responsibility.length > 160)) {
       warn(`${at}.responsibility`, `"${c.name}" reads as more than one responsibility, which usually means it is more than one component`,
         'split it, or accept that the diagram will under-describe it');
     }
@@ -187,8 +187,9 @@ export function validateAnalysis(doc) {
   // A boundary crossing that nobody declared is the most common quiet error.
   if (Array.isArray(doc.boundaries)) {
     const owner = new Map();
-    for (const b of doc.boundaries) for (const id of b.contains || []) owner.set(id, b.id);
+    for (const b of doc.boundaries) if (isObject(b) && Array.isArray(b.contains)) for (const id of b.contains) owner.set(id, b.id);
     relations.forEach((r, i) => {
+      if (!isObject(r)) return;
       const a = owner.get(r.from);
       const z = owner.get(r.to);
       if (a && z && a !== z && !r.crosses) {
@@ -214,7 +215,7 @@ export function validateAnalysis(doc) {
       validateDocRefs(f.doc_refs, `${at}.doc_refs`, err, warn);
       if (f.rule !== undefined) {
         if (f.kind !== 'constraint') warn(`${at}.rule`, `fact "${f.id}" carries a rule but is a ${f.kind}; only a constraint is enforced`);
-        for (const p of ruleProblems(f.rule, { components: byId, boundaries: new Map((doc.boundaries ?? []).map((b) => [b?.id, b])) })) {
+        for (const p of ruleProblems(f.rule, { components: byId, boundaries: new Map((Array.isArray(doc.boundaries) ? doc.boundaries : []).map((b) => [b?.id, b])) })) {
           err(`${at}.rule${p.where}`, p.message, p.fix);
         }
       }
@@ -253,8 +254,10 @@ export function validateAnalysis(doc) {
           'split the question, or let the compiler collapse the periphery');
       }
     }
-    for (const id of q.highlight || []) if (!known(id)) err(`${at}.highlight`, `unknown component "${id}"`);
-    for (const id of q.facts || []) if (!factIds.has(id)) err(`${at}.facts`, `unknown fact "${id}"`);
+    if (q.highlight !== undefined && !Array.isArray(q.highlight)) err(`${at}.highlight`, 'highlight must be an array of component ids');
+    else for (const id of q.highlight || []) if (!known(id)) err(`${at}.highlight`, `unknown component "${id}"`);
+    if (q.facts !== undefined && !Array.isArray(q.facts)) err(`${at}.facts`, 'facts must be an array of fact ids');
+    else for (const id of q.facts || []) if (!factIds.has(id)) err(`${at}.facts`, `unknown fact "${id}"`);
     if (!q.answer) warn(`${at}.answer`, `question "${q.id}" has no answer, so its diagram will lead with nothing`);
     else if (/^TODO\b/.test(q.answer)) warn(`${at}.answer`, `question "${q.id}" still has the seed's TODO for an answer`);
     if (!q.context) warn(`${at}.context`, `question "${q.id}" has no context, so the page opens with a title and an answer to a question the reader has not understood`,
@@ -269,10 +272,11 @@ export function validateAnalysis(doc) {
       'add the terms a reader new to the system will not know; each diagram shows only the ones it uses');
   }
 
-  // A component no question involves will never be drawn. That is allowed , 
-  // the analysis is broader than any one diagram: but it is worth saying.
-  const involved = new Set(questions.flatMap((q) => q.involves || []));
+  // A component no question involves will never be drawn. That is allowed:
+  // the analysis is broader than any one diagram. But it is worth saying.
+  const involved = new Set(questions.flatMap((q) => (Array.isArray(q?.involves) ? q.involves : [])));
   for (const c of components) {
+    if (!isObject(c)) continue;
     if (!involved.has(c.id)) {
       warn('questions', `component "${c.id}" is not involved in any question, so no diagram will show it`);
     }
@@ -335,7 +339,7 @@ function validateDocRefs(list, at, err, warn) {
   list.forEach((d, i) => {
     if (!isObject(d)) return err(`${at}[${i}]`, 'doc_refs entry must be an object');
     if (!isStr(d.path, 1, 240)) err(`${at}[${i}].path`, 'doc_refs.path is required');
-    if (d.path && (d.path.startsWith('/') || d.path.includes('\\') || d.path.includes('..'))) {
+    if (isStr(d.path) && (d.path.startsWith('/') || d.path.includes('\\') || d.path.includes('..'))) {
       err(`${at}[${i}].path`, `document path "${d.path}" must be relative with forward slashes and no ".."`);
     }
     if (d.page !== undefined && (!Number.isInteger(d.page) || d.page < 1)) err(`${at}[${i}].page`, 'page must be a positive integer');
@@ -353,7 +357,7 @@ function validateEvidence(list, at, err) {
   list.forEach((e, i) => {
     if (!isObject(e)) return err(`${at}[${i}]`, 'evidence entry must be an object');
     if (!isStr(e.path, 1, 240)) err(`${at}[${i}].path`, 'evidence.path is required');
-    if (e.path && (e.path.startsWith('/') || e.path.includes('\\') || e.path.includes('..'))) {
+    if (isStr(e.path) && (e.path.startsWith('/') || e.path.includes('\\') || e.path.includes('..'))) {
       err(`${at}[${i}].path`, `evidence path "${e.path}" must be repository-relative with forward slashes and no ".."`);
     }
     if (e.line !== undefined && (!Number.isInteger(e.line) || e.line < 1)) err(`${at}[${i}].line`, 'line must be a positive integer');

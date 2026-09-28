@@ -28,6 +28,7 @@ import { diffAnalyses, renderDiff } from '../skills/archlens/src/diff.mjs';
 import { checkRulesAgainstModel, checkRulesAgainstCode, importsIn, resolveImport, renderEnforce } from '../skills/archlens/src/rules.mjs';
 import { checkDocRefs, findQuote, findSection, renderDocCheck, hasPdftotext, docLink } from '../skills/archlens/src/docs.mjs';
 import { citedFor } from '../skills/archlens/src/brief.mjs';
+import { compactVertically } from '../skills/archlens/src/repair.mjs';
 import { writePdf } from './fixtures/mkpdf.mjs';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -52,6 +53,26 @@ const minimal = () => ({
 test('the example analysis is valid', () => {
   const result = validateAnalysis(example);
   assert.deepEqual(result.errors, [], 'example should have no errors');
+});
+
+test('a malformed analysis is reported, not thrown', () => {
+  const breakers = [
+    (d) => d.questions.push(null),
+    (d) => d.components.push(null),
+    (d) => { d.boundaries = [null]; },
+    (d) => { d.boundaries = []; d.relations.push(null); },
+    (d) => { d.components[0].responsibility = 5; },
+    (d) => { d.questions[0].highlight = 5; },
+    (d) => { d.questions[0].facts = {}; },
+    (d) => { d.boundaries = {}; d.facts = [{ id: 'f', kind: 'constraint', claim: 'C.', rule: { kind: 'no-relation', from: 'a', to: 'b' } }]; },
+    (d) => { d.components[0].evidence = [{ path: 5 }]; },
+    (d) => { d.components[0].doc_refs = [{ path: true, quote: 'q' }]; },
+  ];
+  for (const [i, breakIt] of breakers.entries()) {
+    const doc = minimal();
+    breakIt(doc);
+    assert.equal(validateAnalysis(doc).ok, false, `case ${i} should fail validation`);
+  }
 });
 
 test('a question involving an undeclared component is an error', () => {
@@ -444,6 +465,14 @@ test('a question about nothing in the analysis is empty, not answered from nearb
   assert.match(renderAsk(result), /does not cover this/);
 });
 
+test('a question only a boundary answers is not reported as empty', () => {
+  const doc = minimal();
+  doc.boundaries = [{ id: 'z', kind: 'trust', label: 'Sandbox', claim: 'Nothing inside touches the network.', contains: ['b'] }];
+  const result = ask(doc, 'what is sandboxed from the network?');
+  assert.equal(result.empty, false);
+  assert.match(renderAsk(result), /Sandbox/);
+});
+
 test('a glossary term in the question is expanded to its other spellings', () => {
   const result = ask(example, 'who reads the WAL?');
   assert.ok(result.glossary.some((t) => t.term === 'write-ahead log'));
@@ -760,6 +789,21 @@ test('imports are read from JavaScript, Python and Go, and resolved to files in 
   assert.match(renderEnforce([], result, doc), /The code breaks a constraint/);
   assert.match(renderEnforce([], result, doc), /does not declare/, 'a -> c is an edge the analysis never declared');
   rmSync(root, { recursive: true, force: true });
+});
+
+test('enforce without a repository does not claim the code was checked', () => {
+  const doc = ruled();
+  assert.match(renderEnforce([], null, doc), /The code was not checked/);
+});
+
+test('vertical compaction moves waypoints with the nodes they route between', () => {
+  const spec = {
+    components: [{ id: 'a', pos: [0, 100] }, { id: 'b', pos: [0, 600] }],
+    connections: [{ from: 'a', to: 'b', via: [[200, 600]] }],
+  };
+  compactVertically(spec, 0.5);
+  assert.deepEqual(spec.components[1].pos, [0, 350]);
+  assert.deepEqual(spec.connections[0].via, [[200, 350]]);
 });
 
 // --- citations into documents ----------------------------------------------------

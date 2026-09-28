@@ -3,6 +3,23 @@
 What changed in arch-lens, newest first. Versions are the plugin's; the
 marketplace offers an update whenever one is bumped.
 
+## 0.5.5 — 2026-09-27
+
+A malformed analysis is reported, not thrown; delivered text drops the em-dash.
+
+- `validate` returns errors for a `null` entry in components, relations,
+  boundaries or questions, a non-string `path` or `responsibility`, a
+  non-array `highlight` or `facts`, and a non-array `boundaries` beside a
+  ruled fact. Each used to crash with a TypeError.
+- Vertical compaction in the repair loop moves routed waypoints with their
+  nodes, as horizontal compaction already did.
+- `ask` no longer reports a question as uncovered when only a boundary
+  answers it.
+- `enforce` without `--repo-root` says the code was not checked instead of
+  "Every constraint holds."
+- Output, comments and the rendered page use a colon or comma where they
+  used an em-dash.
+
 ## 0.5.4 — 2026-09-27
 
 Ready for the plugin directory.

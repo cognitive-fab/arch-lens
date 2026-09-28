@@ -307,7 +307,9 @@ export function renderEnforce(modelFindings, codeResult, analysis) {
     w();
   }
   if (!modelFindings.length && !codeResult?.violations.length) {
-    w(rules.length ? 'Every constraint holds.' : 'No constraint carries a rule, so nothing was checked. Add `rule` to a constraint fact.');
+    if (!rules.length) w('No constraint carries a rule, so nothing was checked. Add `rule` to a constraint fact.');
+    else if (codeResult) w('Every constraint holds.');
+    else w('Every constraint holds in the analysis. The code was not checked; pass --repo-root to check it.');
   }
   return `${out.join('\n')}\n`;
 }

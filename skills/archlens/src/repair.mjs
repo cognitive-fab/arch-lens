@@ -448,6 +448,7 @@ export function compactVertically(spec, factor = 0.82) {
     if (connection.labelAt) {
       connection.labelAt = [connection.labelAt[0], Math.round(top + (connection.labelAt[1] - top) * factor)];
     }
+    if (connection.via) connection.via = connection.via.map(([x, y]) => [x, Math.round(top + (y - top) * factor)]);
   }
   return spec;
 }
