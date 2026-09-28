@@ -177,9 +177,9 @@ export function validateAnalysis(doc) {
       warn(at, `relation "${r.from}" -> "${r.to}" does not say what crosses it`,
         'add what_crosses; it is the field a reader most often wants and prose most often omits');
     }
-    const key = `${r.from}>${r.to}`;
-    if (seenEdge.has(key)) warn(at, `duplicate relation "${key}": the renderer will draw two edges between the same pair`);
-    seenEdge.add(key);
+    const pair = `${r.from}>${r.to}`;
+    if (seenEdge.has(pair)) warn(at, `duplicate relation "${pair}": the renderer will draw two edges between the same pair`);
+    seenEdge.add(pair);
     validateEvidence(r.evidence, `${at}.evidence`, err);
     validateDocRefs(r.doc_refs, `${at}.doc_refs`, err, warn);
   });
