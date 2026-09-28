@@ -3,6 +3,16 @@
 What changed in arch-lens, newest first. Versions are the plugin's; the
 marketplace offers an update whenever one is bumped.
 
+## 0.5.4 — 2026-09-27
+
+Ready for the plugin directory.
+
+- An `archify_path` plugin option names the archify checkout, so the
+  location can be set when the plugin is enabled instead of only through
+  the `ARCHLENS_ARCHIFY` environment variable. Left empty, the probe finds
+  the installed skill as before.
+- The plugin has an icon, `.claude-plugin/icon.svg`.
+
 ## 0.5.3 — 2026-09-19
 
 A short sequence renders.

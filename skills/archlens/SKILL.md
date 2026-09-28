@@ -3,7 +3,7 @@ name: archlens
 description: Analyse a system's architecture into a structured, evidence-carrying model, then render that model as a set of validated interactive diagrams and a matching markdown document. Use when asked to map, diagram, document or explain the architecture of a codebase or design; to produce architecture diagrams that stay honest about what exists versus what is only designed; or to keep an architecture document and its diagrams from disagreeing. Prefer this over drawing a diagram directly.
 license: MIT
 metadata:
-  version: "0.5.3"
+  version: "0.5.4"
 ---
 
 # Archlens
@@ -14,6 +14,13 @@ The failure this exists to prevent: authoring boxes straight into a renderer. A
 renderer has room for two words per node, so the reasoning never gets written
 down, and what ships is a pretty picture that answers no question. Here the
 analysis is the artifact and the diagram is a projection of it.
+
+## Where archify is
+
+The configured archify location is `${user_config.archify_path}`. If that is a
+path rather than empty or a placeholder, run every `archlens.mjs` command with
+`ARCHLENS_ARCHIFY` set to it. Otherwise archlens finds the installed archify skill
+on its own.
 
 ## The loop
 
