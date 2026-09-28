@@ -1,8 +1,8 @@
 // Constraints a machine can check.
 //
 // A fact of kind `constraint` is prose: "nothing downstream can reach back
-// into the database". Most such sentences are really a rule about edges —
-// which parts may talk to which — and a rule about edges can be checked twice:
+// into the database". Most such sentences are really a rule about edges , 
+// which parts may talk to which: and a rule about edges can be checked twice:
 // against the analysis itself, where a declared relation that breaks it means
 // the document contradicts its own doctrine; and against the code, where an
 // import from one component's files into another's is an edge whether or not
@@ -302,7 +302,7 @@ export function renderEnforce(modelFindings, codeResult, analysis) {
     w();
   }
   if (codeResult?.undeclared.length) {
-    w('Edges in the code the analysis does not declare — not violations, but undocumented:');
+    w('Edges in the code the analysis does not declare: not violations, but undocumented:');
     for (const u of codeResult.undeclared) w(`  ${name(u.from)} -> ${name(u.to)}  (${u.sites.length} import(s), e.g. ${u.sites[0].file}:${u.sites[0].line})`);
     w();
   }

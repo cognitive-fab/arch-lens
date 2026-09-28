@@ -3,7 +3,7 @@
 // An analysis pins a revision and cites evidence. Both go stale the moment the
 // repository moves, and nothing in the file can tell you. This re-resolves
 // every citation against the working tree and, when the pinned revision is
-// available, asks git what happened to each cited file since — so the answer
+// available, asks git what happened to each cited file since: so the answer
 // to "can we still trust this document" is a list, not a feeling.
 //
 // Three findings, in order of how much they matter:
@@ -144,23 +144,23 @@ export function renderDrift(result) {
     else if (result.ahead === 0) w(`pinned   ${pin}, which is HEAD`);
     else w(`pinned   ${pin}; HEAD ${result.head.slice(0, 7)} is ${result.ahead} commit(s) past it`);
   } else {
-    w('pinned   nothing — the analysis names no repository revision, so only existence was checked');
+    w('pinned   nothing: the analysis names no repository revision, so only existence was checked');
   }
   w(`cited    ${result.total} evidence reference(s): ${result.fine} unchanged, ${result.moved.length} changed, ${result.gone.length} gone`);
   w();
 
   if (result.gone.length) {
-    w('Gone — the analysis points at nothing:');
+    w('Gone: the analysis points at nothing:');
     for (const g of result.gone) w(`  ${g.kind} ${g.what}  ${g.path}  (${g.reason})`);
     w();
   }
   if (result.built.length) {
-    w('Marked planned, but the evidence resolves — built since, or never evidence:');
+    w('Marked planned, but the evidence resolves: built since, or never evidence:');
     for (const b of result.built) w(`  ${b.what} (${b.status})  ${b.path}`);
     w();
   }
   if (result.moved.length) {
-    w('Changed since the pinned revision — the claim may still hold; look:');
+    w('Changed since the pinned revision: the claim may still hold; look:');
     for (const m of result.moved) {
       const note = m.changed !== m.path ? ` (${m.changed})` : '';
       w(`  ${m.kind} ${m.what}  ${m.path}${note}`);

@@ -50,8 +50,8 @@ export function hasPdftotext() {
 
 /**
  * The pages of a document, as text. One entry for a text file; one per page
- * for a PDF. When the document cannot be read here — no pdftotext, an
- * encrypted or damaged PDF, a directory where a file was expected — the
+ * for a PDF. When the document cannot be read here: no pdftotext, an
+ * encrypted or damaged PDF, a directory where a file was expected: the
  * answer is a reason, so the citation is reported as unverified by name
  * rather than taking the whole check down with it.
  *
@@ -188,7 +188,7 @@ export function renderDocCheck(result) {
   w(`cited    ${result.total} document reference(s): ${result.fine} confirmed, ${result.unverified.length} unverified, ${result.missing.length + result.mispaged.length} wrong, ${result.gone.length} gone`);
   w();
   if (result.gone.length) {
-    w('Gone — the analysis points at nothing:');
+    w('Gone: the analysis points at nothing:');
     for (const g of result.gone) w(`  ${g.kind} ${g.what}  ${g.path}  (${g.reason})`);
     w();
   }
@@ -218,7 +218,7 @@ export function renderDocCheck(result) {
  *
  * `ref.path` is relative to the repository root, and the page that carries the
  * link usually is not, so `base` is the way from that page's directory back to
- * the root — the caller knows it; this does not. Spaces and parentheses are
+ * the root: the caller knows it; this does not. Spaces and parentheses are
  * escaped so the link survives markdown as well as HTML.
  */
 export function docLink(ref, base = '') {
@@ -227,7 +227,7 @@ export function docLink(ref, base = '') {
   return `${joined.replace(/ /g, '%20').replace(/\(/g, '%28').replace(/\)/g, '%29')}${anchor}`;
 }
 
-/** "§3.2, p. 12" — whatever the citation carries, in reading order. */
+/** "§3.2, p. 12": whatever the citation carries, in reading order. */
 export function docCite(ref) {
   const parts = [];
   if (ref.section) parts.push(ref.section);

@@ -3,8 +3,8 @@
 // A rendered diagram is the right answer to some questions and the wrong shape
 // for most: "does the replica ever write to the database?" wants a sentence and
 // a citation, not a picture. This gathers the slice of the analysis a question
-// touches — the components, the relations between them, the facts, the questions
-// already answered, the terms — and hands it back with every claim carrying its
+// touches: the components, the relations between them, the facts, the questions
+// already answered, the terms: and hands it back with every claim carrying its
 // evidence, so whoever writes the sentence (a person, or the model running the
 // skill) is writing from the analysis and not from memory.
 //
@@ -229,7 +229,7 @@ export function renderAsk(result, { limit = 8 } = {}) {
     for (const m of result.components.slice(0, limit)) {
       const c = m.component;
       const status = c.status && c.status !== 'built' ? ` (${c.status})` : '';
-      w(`  ${c.id}${status}  ${c.name} — ${c.responsibility}${cite(c.evidence)}`);
+      w(`  ${c.id}${status}  ${c.name}: ${c.responsibility}${cite(c.evidence)}`);
     }
     w();
   }
@@ -249,7 +249,7 @@ export function renderAsk(result, { limit = 8 } = {}) {
     w('Boundaries:');
     for (const m of result.boundaries.slice(0, 3)) {
       const b = m.boundary;
-      w(`  ${b.label} (${b.kind}) — ${b.claim}. Contains: ${b.contains.map(name).join(', ')}`);
+      w(`  ${b.label} (${b.kind}): ${b.claim}. Contains: ${b.contains.map(name).join(', ')}`);
     }
     w();
   }
@@ -258,14 +258,14 @@ export function renderAsk(result, { limit = 8 } = {}) {
     w('Facts:');
     for (const m of result.facts.slice(0, limit)) {
       const f = m.fact;
-      w(`  ${f.kind}  ${f.claim}${f.because ? ` — ${f.because}` : ''}${cite(f.evidence)}`);
+      w(`  ${f.kind}  ${f.claim}${f.because ? `: ${f.because}` : ''}${cite(f.evidence)}`);
     }
     w();
   }
 
   if (result.glossary.length) {
     w('Terms:');
-    for (const t of result.glossary) w(`  ${t.term} — ${t.definition}`);
+    for (const t of result.glossary) w(`  ${t.term}: ${t.definition}`);
     w();
   }
 

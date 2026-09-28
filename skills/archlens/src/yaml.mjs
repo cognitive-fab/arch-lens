@@ -69,7 +69,7 @@ function opensScalar(raw, i) {
 
 /**
  * Parse the block starting at `at`, whose lines are indented more than
- * `parentIndent` — except that a list may sit at the same indent as the key it
+ * `parentIndent`: except that a list may sit at the same indent as the key it
  * belongs to, which is the compact style most compose files use.
  */
 function parseBlock(lines, at, parentIndent, { listMayAlign = false } = {}) {
@@ -114,7 +114,7 @@ function parseList(lines, at, indent) {
       i = next;
     } else if (!/^[[{]/.test(rest) && /^("[^"]*"|'[^']*'|[^:#]+?)\s*:(?:\s+.*)?$/.test(rest)) {
       // "- key: value" opens a mapping whose remaining keys are indented to
-      // line up with the key — wherever the key starts, since "-   key" with
+      // line up with the key: wherever the key starts, since "-   key" with
       // extra spaces is valid. Re-present the first pair as a line at that indent.
       const inner = indent + (text.length - rest.length);
       const first = { n, indent: inner, text: rest };

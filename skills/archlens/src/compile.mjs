@@ -41,7 +41,7 @@ export const TYPE_OF = {
 /**
  * What the seven boxes are called when the subject is not software.
  *
- * The shapes are archify's and they are fine — a paper has inputs, methods,
+ * The shapes are archify's and they are fine: a paper has inputs, methods,
  * data and prior work, and they want distinguishing exactly as much as a
  * frontend and a database do. What is wrong on a paper is the *wording*:
  * "Backend" under a box that stands for a training procedure tells a reader
@@ -114,7 +114,7 @@ export function compileQuestion(analysis, questionId, options = {}) {
   const highlight = new Set(question.highlight || []);
 
   // Relations with both ends in scope are drawn. Relations with one end in
-  // scope either vanish or become an edge to "elsewhere" — never silently.
+  // scope either vanish or become an edge to "elsewhere": never silently.
   const drawn = [];
   const outside = new Set();
   for (const r of (analysis.relations ?? [])) {
@@ -352,7 +352,7 @@ function legendFor(analysis) {
  */
 function sourcesFor(component, analysis) {
   // A document has no revision to pin, and archify's `sources` is repository
-  // evidence by contract — it refuses to render without /meta/repository. The
+  // evidence by contract: it refuses to render without /meta/repository. The
   // section reference goes on the node's tag instead, where a reader looking at
   // the box can see which part of the paper it came from.
   if (analysis.system.domain === 'document') return null;
@@ -385,7 +385,7 @@ function boundariesFor(analysis, inScope, dropped) {
     }
     out.push({
       kind: b.kind === 'trust' || b.kind === 'licence' ? 'security-group' : 'region',
-      label: `${b.label} — ${b.claim}`.length <= 90 ? `${b.label} — ${b.claim}` : b.label,
+      label: `${b.label}: ${b.claim}`.length <= 90 ? `${b.label}: ${b.claim}` : b.label,
       wraps: present,
       pad: 20,
     });
@@ -427,7 +427,7 @@ export function cardsFor(question, analysis, idx, omitted = []) {
     cards.push({
       dot: CARD_DOT[kind] ?? 'slate',
       title: titleFor(kind),
-      items: facts.slice(0, 3).map((f) => (f.because ? `${f.claim} — ${f.because}` : f.claim)),
+      items: facts.slice(0, 3).map((f) => (f.because ? `${f.claim}: ${f.because}` : f.claim)),
     });
   }
 

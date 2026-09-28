@@ -1,7 +1,7 @@
 // The analysis model: load it, and refuse it when it is not one.
 //
 // The checks here are the ones a JSON Schema cannot make. Shape is easy and a
-// schema would do it; what matters is REFERENTIAL truth — a question that names
+// schema would do it; what matters is REFERENTIAL truth: a question that names
 // a component nobody declared, a boundary that claims to contain a stranger, a
 // relation whose endpoints do not exist. Those are the errors that produce a
 // diagram which looks fine and says something false.
@@ -97,7 +97,7 @@ export function validateAnalysis(doc) {
 
     if (!isStr(c.name, 1, 40)) err(`${at}.name`, 'name is required and must be at most 40 characters');
     if (!KINDS.has(c.kind)) err(`${at}.kind`, `unknown component kind ${JSON.stringify(c.kind)}`, `use one of: ${[...KINDS].join(', ')}`);
-    if (!isStr(c.responsibility)) err(`${at}.responsibility`, 'responsibility is required — one sentence saying what this component is answerable for');
+    if (!isStr(c.responsibility)) err(`${at}.responsibility`, 'responsibility is required: one sentence saying what this component is answerable for');
     if (c.detail !== undefined && !isStr(c.detail, 1, 28)) err(`${at}.detail`, 'detail must be at most 28 characters');
     if (c.status !== undefined && !STATUSES.has(c.status)) err(`${at}.status`, `status must be built, partial or planned`);
     if (/^TODO\b/.test(c.responsibility ?? '')) {
@@ -170,7 +170,7 @@ export function validateAnalysis(doc) {
     if (!known(r.to)) err(`${at}.to`, `relation to unknown component "${r.to}"`);
     if (r.from === r.to) err(`${at}`, `relation "${r.from}" -> "${r.to}" is a self-loop, which the renderer cannot draw`);
     if (!MECHANISMS.has(r.mechanism)) err(`${at}.mechanism`, `unknown mechanism ${JSON.stringify(r.mechanism)}`, `use one of: ${[...MECHANISMS].join(', ')}`);
-    if (!isStr(r.summary, 1, 34)) err(`${at}.summary`, 'summary is required and must be at most 34 characters — it is the edge label');
+    if (!isStr(r.summary, 1, 34)) err(`${at}.summary`, 'summary is required and must be at most 34 characters: it is the edge label');
     if (r.status !== undefined && !STATUSES.has(r.status)) err(`${at}.status`, 'status must be built, partial or planned');
     if (r.crosses !== undefined && !boundaryIds.has(r.crosses)) err(`${at}.crosses`, `relation crosses unknown boundary "${r.crosses}"`);
     if (!r.what_crosses) {
@@ -178,7 +178,7 @@ export function validateAnalysis(doc) {
         'add what_crosses; it is the field a reader most often wants and prose most often omits');
     }
     const key = `${r.from}>${r.to}`;
-    if (seenEdge.has(key)) warn(at, `duplicate relation "${key}" — the renderer will draw two edges between the same pair`);
+    if (seenEdge.has(key)) warn(at, `duplicate relation "${key}": the renderer will draw two edges between the same pair`);
     seenEdge.add(key);
     validateEvidence(r.evidence, `${at}.evidence`, err);
     validateDocRefs(r.doc_refs, `${at}.doc_refs`, err, warn);
@@ -232,7 +232,7 @@ export function validateAnalysis(doc) {
 
   // --- questions ----------------------------------------------------------
   const questions = Array.isArray(doc.questions) ? doc.questions : [];
-  if (questions.length === 0) err('questions', 'at least one question is required — a diagram without a question is a picture of a codebase');
+  if (questions.length === 0) err('questions', 'at least one question is required: a diagram without a question is a picture of a codebase');
   const qIds = new Set();
   questions.forEach((q, i) => {
     const at = `questions[${i}]`;
@@ -269,8 +269,8 @@ export function validateAnalysis(doc) {
       'add the terms a reader new to the system will not know; each diagram shows only the ones it uses');
   }
 
-  // A component no question involves will never be drawn. That is allowed —
-  // the analysis is broader than any one diagram — but it is worth saying.
+  // A component no question involves will never be drawn. That is allowed , 
+  // the analysis is broader than any one diagram: but it is worth saying.
   const involved = new Set(questions.flatMap((q) => q.involves || []));
   for (const c of components) {
     if (!involved.has(c.id)) {
@@ -283,8 +283,8 @@ export function validateAnalysis(doc) {
 
 /**
  * A sequence is a projection of the same relations, in an order. So every step
- * has to run along a relation the analysis declares — forwards for a call, in
- * either direction for a reply — or the picture would show an exchange the
+ * has to run along a relation the analysis declares: forwards for a call, in
+ * either direction for a reply: or the picture would show an exchange the
  * model says never happens, and nothing downstream could tell.
  */
 function validateShape(q, at, relations, err, warn) {
@@ -308,7 +308,7 @@ function validateShape(q, at, relations, err, warn) {
     }
     if (step.from === step.to) err(here, `step "${step.from}" -> "${step.to}" is a self-message, which the renderer cannot draw`);
     if (step.kind !== undefined && !STEP_KINDS.has(step.kind)) err(`${here}.kind`, `unknown step kind ${JSON.stringify(step.kind)}`, `use one of: ${[...STEP_KINDS].join(', ')}`);
-    if (step.says !== undefined && !isStr(step.says, 1, 34)) err(`${here}.says`, 'says must be at most 34 characters — it is the message label');
+    if (step.says !== undefined && !isStr(step.says, 1, 34)) err(`${here}.says`, 'says must be at most 34 characters: it is the message label');
     if (step.phase !== undefined && !isStr(step.phase, 1, 24)) err(`${here}.phase`, 'phase must be at most 24 characters');
     const forward = edge(step.from, step.to);
     const backward = edge(step.to, step.from);
@@ -342,7 +342,7 @@ function validateDocRefs(list, at, err, warn) {
     if (d.quote !== undefined && !isStr(d.quote, 1, 240)) err(`${at}[${i}].quote`, 'quote must be at most 240 characters');
     if (!d.section && !d.quote && !d.page) {
       warn(`${at}[${i}]`, `the citation of "${d.path}" names no section, page or quote, so nothing in it can be checked`,
-        'add a quote — the strongest citation a document allows — or at least a section');
+        'add a quote: the strongest citation a document allows: or at least a section');
     }
   });
 }

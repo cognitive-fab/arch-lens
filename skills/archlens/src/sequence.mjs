@@ -8,7 +8,7 @@
 //
 // The same model feeds it. A question that declares `shape: "sequence"` lists
 // its `steps` in order, and every step is an exchange along a relation the
-// analysis already declares — the compiler refuses one that is not, because a
+// analysis already declares: the compiler refuses one that is not, because a
 // sequence that shows a message the model says never crosses is a story, not a
 // projection. What changes is only what gets drawn: participants instead of
 // nodes, messages instead of edges, phases instead of boundaries.
@@ -125,8 +125,8 @@ export function compileSequence(analysis, question) {
     return spec;
   });
 
-  // Idle lifelines are allowed — a participant can be there to be pointedly
-  // not spoken to — but they are worth a line, because usually it is a step the
+  // Idle lifelines are allowed: a participant can be there to be pointedly
+  // not spoken to: but they are worth a line, because usually it is a step the
   // author forgot.
   const touched = new Set(steps.flatMap((s) => [s.from, s.to]));
   const idle = question.involves.filter((id) => !touched.has(id));
@@ -242,7 +242,7 @@ function variantFor(step, relation, highlight) {
 
 /**
  * Vertical containment is judged in a browser after delivery. A sequence cannot
- * pull its rows together — the renderer owns the message rhythm — so it takes
+ * pull its rows together: the renderer owns the message rhythm: so it takes
  * the other lever and widens, which the reader's fit-to-width turns into a
  * shorter picture.
  */

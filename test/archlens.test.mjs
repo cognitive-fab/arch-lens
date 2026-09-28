@@ -1,6 +1,6 @@
 // Tests for the parts that can be wrong quietly.
 //
-// The renderer already proves the geometry — every delivered diagram passes nine
+// The renderer already proves the geometry: every delivered diagram passes nine
 // artifact checks and a browser pass, and nothing here re-litigates that. What is
 // tested here is the analysis contract and the compiler's honesty: a question
 // that draws a component nobody declared, a boundary drawn around a single node,
@@ -415,8 +415,8 @@ test('a sequence says what it cannot draw: boundaries and source links', () => {
 test('the document lists a sequence in order, replies marked', () => {
   const md = renderMarkdown(sequenced());
   assert.match(md, /In order:/);
-  assert.match(md, /1\. \*\*A → B\*\* — calls\. A request\./);
-  assert.match(md, /2\. \*\*B ⇢ A\*\* — done/);
+  assert.match(md, /1\. \*\*A → B\*\*: calls\. A request\./);
+  assert.match(md, /2\. \*\*B ⇢ A\*\*: done/);
 });
 
 // --- asking ------------------------------------------------------------------
@@ -832,7 +832,7 @@ test('the document link opens at the cited page, and the brief lists what a pape
 test('the markdown links a citation to its page and carries the quote', () => {
   const doc = paper();
   doc.components[0].doc_refs = [{ path: 'paper.pdf', section: '§3.1', page: 4, quote: 'the thing' }];
-  assert.match(renderMarkdown(doc), /\[paper\.pdf §3\.1, p\. 4\]\(paper\.pdf#page=4\) — “the thing”/);
+  assert.match(renderMarkdown(doc), /\[paper\.pdf §3\.1, p\. 4\]\(paper\.pdf#page=4\): “the thing”/);
 });
 
 if (hasPdftotext()) {

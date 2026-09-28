@@ -5,7 +5,7 @@
 // and answers, from the analysis alone: which components those files are
 // evidence for, which diagrams show them, which boundaries the change spans and
 // what those boundaries claim, which relations between the touched components a
-// reviewer should re-read, and — the part a diagram never says — which changed
+// reviewer should re-read, and: the part a diagram never says: which changed
 // files the analysis has no component for at all.
 //
 // It is a reading, not a verdict. Nothing here knows what the diff does; it
@@ -146,7 +146,7 @@ export function renderReview(result) {
   w();
 
   if (result.gone.length) {
-    w('Evidence this change removes — the analysis now points at nothing:');
+    w('Evidence this change removes: the analysis now points at nothing:');
     for (const g of result.gone) w(`  ${g.component.id}  ${g.component.name} cited ${g.path}`);
     w('  Update the evidence, or the component, before the analysis is trusted again.');
     w();
@@ -161,14 +161,14 @@ export function renderReview(result) {
       const c = t.component;
       const status = c.status && c.status !== 'built' ? ` (${c.status})` : '';
       const where = t.files.map((f) => `${f.path}${f.how === 'lines' ? ' at the cited lines' : ''}`).join(', ');
-      w(`  ${c.id}${status}  ${c.name} — ${c.responsibility}`);
+      w(`  ${c.id}${status}  ${c.name}: ${c.responsibility}`);
       w(`      via ${where}`);
     }
     w();
   }
 
   if (result.relationsChanged.length) {
-    w('Relations whose cited code changed — re-read what_crosses:');
+    w('Relations whose cited code changed: re-read what_crosses:');
     for (const m of result.relationsChanged) {
       const r = m.relation;
       w(`  ${name(r.from)} -> ${name(r.to)}: ${r.what_crosses ?? r.summary}  [${m.path}]`);
@@ -180,14 +180,14 @@ export function renderReview(result) {
     const spans = result.boundaries.length > 1;
     w(spans ? `The change spans ${result.boundaries.length} boundaries. Each one claims:` : 'The change is inside one boundary, which claims:');
     for (const m of result.boundaries) {
-      w(`  ${m.boundary.label} — ${m.boundary.claim}`);
+      w(`  ${m.boundary.label}: ${m.boundary.claim}`);
       w(`      touched: ${m.touched.map(name).join(', ')}`);
     }
     w();
   }
 
   if (result.relationsBetween.length) {
-    w('Relations between touched components — is what crosses still what the analysis says?');
+    w('Relations between touched components: is what crosses still what the analysis says?');
     for (const r of result.relationsBetween) {
       const crossing = r.crosses ? ` (crosses ${idx.boundaries.get(r.crosses)?.label ?? r.crosses})` : '';
       w(`  ${name(r.from)} -> ${name(r.to)} over ${r.mechanism}${crossing}: ${r.what_crosses ?? r.summary}`);
@@ -196,7 +196,7 @@ export function renderReview(result) {
   }
 
   if (result.crossingsFrom.length) {
-    w('Boundary crossings from a touched component — does the boundary claim still hold?');
+    w('Boundary crossings from a touched component: does the boundary claim still hold?');
     for (const r of result.crossingsFrom) {
       w(`  ${name(r.from)} -> ${name(r.to)} crosses ${idx.boundaries.get(r.crosses)?.label ?? r.crosses}: ${r.what_crosses ?? r.summary}`);
     }
@@ -205,12 +205,12 @@ export function renderReview(result) {
 
   if (result.facts.length) {
     w('Claims the change lands on:');
-    for (const f of result.facts) w(`  ${f.kind}  ${f.claim}${f.because ? ` — ${f.because}` : ''}`);
+    for (const f of result.facts) w(`  ${f.kind}  ${f.claim}${f.because ? `: ${f.because}` : ''}`);
     w();
   }
 
   if (result.questions.length) {
-    w('Diagrams that show what changed — re-render and re-read:');
+    w('Diagrams that show what changed: re-render and re-read:');
     for (const m of result.questions) {
       w(`  ${m.question.id}  ${m.question.title}  (${m.touched.map(name).join(', ')})`);
     }

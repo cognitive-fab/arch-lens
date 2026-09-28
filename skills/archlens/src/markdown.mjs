@@ -21,7 +21,7 @@ export function renderMarkdown(analysis, { diagrams = new Map(), docBase = '' } 
   const out = [];
   const w = (line = '') => out.push(line);
 
-  w(`# ${analysis.system.name} — architecture`);
+  w(`# ${analysis.system.name} architecture`);
   w();
   w(analysis.system.purpose);
   w();
@@ -59,7 +59,7 @@ export function renderMarkdown(analysis, { diagrams = new Map(), docBase = '' } 
     const diagram = diagrams.get(q.id);
     if (diagram) {
       const noun = q.shape === 'sequence' ? 'participants' : 'components';
-      w(`[Open the diagram](${diagram}) — ${q.involves.length} ${noun}.`);
+      w(`[Open the diagram](${diagram}). ${q.involves.length} ${noun}.`);
       w();
     }
     const parts = q.involves.map((id) => idx.components.get(id)).filter(Boolean);
@@ -93,7 +93,7 @@ export function renderMarkdown(analysis, { diagrams = new Map(), docBase = '' } 
         const says = step.says ?? relation?.summary ?? '';
         const arrow = step.kind === 'return' ? '⇢' : '→';
         const carries = step.note ?? (step.kind !== 'return' ? relation?.what_crosses : null);
-        w(`${i + 1}. **${from} ${arrow} ${to}** — ${says}${carries ? `. ${carries}` : ''}`);
+        w(`${i + 1}. **${from} ${arrow} ${to}**: ${says}${carries ? `. ${carries}` : ''}`);
       });
       w();
     }
@@ -107,7 +107,7 @@ export function renderMarkdown(analysis, { diagrams = new Map(), docBase = '' } 
     if (terms.length) {
       w('#### Terms used here');
       w();
-      for (const t of terms) w(`- **${t.term}** — ${t.definition}`);
+      for (const t of terms) w(`- **${t.term}**: ${t.definition}`);
       w();
     }
   }
@@ -150,7 +150,7 @@ export function renderMarkdown(analysis, { diagrams = new Map(), docBase = '' } 
     }
     for (const c of components) {
       const mark = STATUS_MARK[c.status ?? 'built'] ?? '';
-      w(`**${c.name}**${mark} — ${c.responsibility}`);
+      w(`**${c.name}**${mark}: ${c.responsibility}`);
       w();
       const bullets = [];
       if (c.evidence?.length) {
@@ -159,7 +159,7 @@ export function renderMarkdown(analysis, { diagrams = new Map(), docBase = '' } 
       if (c.doc_refs?.length) {
         bullets.push('Documented in: ' + c.doc_refs.map((d) => {
           const cite = docCite(d);
-          const quote = d.quote ? ` — “${d.quote}”` : '';
+          const quote = d.quote ? `: “${d.quote}”` : '';
           return `[${d.path}${cite ? ` ${cite}` : ''}](${docLink(d, docBase)})${quote}`;
         }).join('; '));
       }

@@ -3,7 +3,7 @@
 // A compose file names the services and which one waits for which. A
 // workspace manifest names the packages and which one imports which. Neither
 // says what anything is *for*, and that sentence is the whole point of the
-// analysis — so a seed writes the skeleton with evidence attached and leaves a
+// analysis: so a seed writes the skeleton with evidence attached and leaves a
 // TODO where the responsibility goes, and the validator warns on every TODO
 // until a person or the model has replaced it. A seeded analysis renders, which
 // is useful for a first look, and it says on every node that it is a draft.
@@ -203,7 +203,7 @@ function finish({ name, purpose, source, components, relations, boundaries, note
   if (components.length === 0) throw new Error('nothing to seed from: no components found');
   const involves = components.slice(0, 12).map((c) => c.id);
   if (components.length > 12) {
-    notes.push(`${components.length} components; the first question involves the first 12 — split it into narrower questions`);
+    notes.push(`${components.length} components; the first question involves the first 12: split it into narrower questions`);
   }
   const questions = [{
     id: 'parts',

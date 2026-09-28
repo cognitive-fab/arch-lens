@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// archlens — an architecture analysis, rendered.
+// archlens: an architecture analysis, rendered.
 //
 // Findings first: every command reports what it could not do before it reports
 // what it did, because a diagram that quietly dropped a boundary is worse than
@@ -26,7 +26,7 @@ import { checkDocRefs, renderDocCheck, docCitations } from '../src/docs.mjs';
 import { diffAnalyses, renderDiff } from '../src/diff.mjs';
 import { checkRulesAgainstModel, checkRulesAgainstCode, renderEnforce } from '../src/rules.mjs';
 
-const USAGE = `archlens — an architecture analysis, rendered
+const USAGE = `archlens: an architecture analysis, rendered
 
   archlens validate <analysis.json>
       Check the analysis for referential errors and thin spots.
@@ -44,8 +44,8 @@ const USAGE = `archlens — an architecture analysis, rendered
       makes document citations link correctly from where out.md lives.
 
   archlens ask <analysis.json> "<question>" [--json]
-      Gather what the analysis says about a question — components, relations,
-      facts, questions already answered, terms — each with its evidence, and
+      Gather what the analysis says about a question: components, relations,
+      facts, questions already answered, terms: each with its evidence, and
       name what the question asks about that the analysis never mentions.
 
   archlens review <analysis.json> --repo-root <dir> [--base <ref>] [--json]
@@ -67,7 +67,7 @@ const USAGE = `archlens — an architecture analysis, rendered
       available, report what changed since it. Document citations (doc_refs)
       are checked against the documents: the file, the section, the quote and
       the page it claims (PDFs through pdftotext). Exits 1 when a citation
-      points at nothing — the check to run in CI.
+      points at nothing: the check to run in CI.
 
   archlens compare <base.analysis.json> <head.analysis.json> [out-dir] [--repo-root <dir>]
       What changed between two analyses: components, relations, boundaries,
@@ -197,7 +197,7 @@ function cmdRender() {
     const stem = `${target.id}.${type}`;
     const specPath = join(dir, `${stem}.json`);
     const htmlPath = join(dir, `${stem}.html`);
-    say(`— ${target.id}: ${target.question.title}`);
+    say(`## ${target.id}: ${target.question.title}`);
     for (const d of target.dropped) say(`  dropped  ${d}`);
 
     const result = repair(target.spec, specPath, {
@@ -231,7 +231,7 @@ function cmdRender() {
     if (!has('no-check')) {
       // Vertical containment is only knowable in a browser, so it is measured
       // after delivery and fixed by pulling the rows together. One pass is not
-      // always enough — a tall diagram can need three — and each attempt has to
+      // always enough: a tall diagram can need three: and each attempt has to
       // re-run the repair loop, because moving rows can re-open a label
       // collision that was already settled. A sequence owns no rows to pull;
       // it widens instead, and the reader's fit-to-width makes it shorter.
@@ -250,7 +250,7 @@ function cmdRender() {
         if (!redelivered.ok) break;
         check = visualCheck(htmlPath);
       }
-      say(`  browser  ${check.ok ? 'contained at every checked viewport' : 'STILL OVERFLOWING — open it and look'}`);
+      say(`  browser  ${check.ok ? 'contained at every checked viewport' : 'STILL OVERFLOWING: open it and look'}`);
       if (!check.ok) failures += 1;
     }
 
@@ -260,6 +260,11 @@ function cmdRender() {
     } else if (!target.question.context && !target.question.narrative) {
       say('  warning  no brief: the question has no context or narrative, so the page ends at the diagram');
     }
+
+    // House style: no em-dash anywhere in delivered text, including the renderer's own viewer strings.
+    const page = readFileSync(htmlPath, 'utf8');
+    const plain = page.replace(/ \u2014 /g, ': ').replace(/\u2014/g, ', ');
+    if (plain !== page) writeFileSync(htmlPath, plain);
 
     produced.set(target.id, `${stem}.html`);
     say(`  wrote    ${htmlPath}`);
@@ -349,7 +354,7 @@ function cmdSeed() {
   if (!input) fail('an input file is required: a compose file, a package.json with workspaces, or pnpm-workspace.yaml');
   const inputPath = resolve(input);
   // Evidence is repository-relative, and `review` will later compare it with
-  // what git reports, so the root has to be the repository's — not the input's
+  // what git reports, so the root has to be the repository's: not the input's
   // directory, which for deploy/docker-compose.yml would be one level wrong.
   const repoRoot = flag('repo-root') ? resolve(flag('repo-root')) : gitRootOf(dirname(inputPath)) ?? dirname(inputPath);
   const rel = (p) => p.replace(/\\/g, '/');
@@ -492,19 +497,19 @@ function cmdCompare() {
     const fixed = [repair(a, aPath, { repoRoot }), repair(b, bPath, { repoRoot })];
     if (!fixed.every((r) => r.ok)) {
       failures += 1;
-      say(`— ${q.id}: FAILED the ${fixed[0].ok ? 'head' : 'base'} specification did not pass the renderer's checks`);
+      say(`## ${q.id}: FAILED the ${fixed[0].ok ? 'head' : 'base'} specification did not pass the renderer's checks`);
       continue;
     }
     const report = compare(aPath, bPath, html, { repoRoot });
     if (!report.ok) {
       failures += 1;
-      say(`— ${q.id}: FAILED ${report.error ?? (report.diagnostics ?? []).map((d) => d.message).join('; ') ?? 'unknown error'}`);
+      say(`## ${q.id}: FAILED ${report.error ?? (report.diagnostics ?? []).map((d) => d.message).join('; ') ?? 'unknown error'}`);
       continue;
     }
     const s = report.summary ?? {};
     const c = s.components ?? {};
     const k = s.connections ?? {};
-    say(`— ${q.id}: components +${c.added ?? 0} -${c.removed ?? 0} ~${c.changed ?? 0}, connections +${k.added ?? 0} -${k.removed ?? 0} ~${k.changed ?? 0}`);
+    say(`## ${q.id}: components +${c.added ?? 0} -${c.removed ?? 0} ~${c.changed ?? 0}, connections +${k.added ?? 0} -${k.removed ?? 0} ~${k.changed ?? 0}`);
     say(`  wrote    ${html}`);
   }
   if (!shared.length) say('no architecture question is asked by both analyses, so there is nothing to draw');

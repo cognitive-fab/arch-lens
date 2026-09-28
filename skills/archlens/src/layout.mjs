@@ -115,7 +115,7 @@ function normalise(rankOf) {
  * Trade height for width until the diagram is wider than it is tall.
  *
  * The renderer scales a diagram to fit the available WIDTH and lets the height
- * follow, so a tall narrow picture is never shrunk — it just runs off the bottom
+ * follow, so a tall narrow picture is never shrunk: it just runs off the bottom
  * of the viewport, and pulling the rows closer barely helps. What helps is
  * fewer rows. A column taller than the budget is split into adjacent columns of
  * the same rank, which is safe because no relation joins two nodes of one rank.

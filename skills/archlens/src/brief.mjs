@@ -3,7 +3,7 @@
 // A diagram has room for two words per node and three short cards beside it.
 // That is enough to answer a question for someone who already knows the system
 // and not nearly enough for someone meeting it for the first time. The cards
-// stay as they are — they are the right size for what they do. This adds what
+// stay as they are: they are the right size for what they do. This adds what
 // was missing underneath: what the question is even about, the long read, and
 // the words a newcomer will not know.
 //
@@ -69,7 +69,7 @@ export function glossaryFor(question, analysis, idx) {
 
 /**
  * What a document subject cites, per component the question draws. The diagram
- * has no source links for a paper — archify's are repository evidence — so this
+ * has no source links for a paper: archify's are repository evidence: so this
  * is where the reader gets the page.
  */
 export function citedFor(question, analysis, idx) {
@@ -117,7 +117,7 @@ export function briefHtml(question, analysis, idx, { docBase = '' } = {}) {
     for (const { component, ref } of cited) {
       const cite = docCite(ref);
       const quote = ref.quote ? ` <q>${esc(ref.quote)}</q>` : '';
-      out.push(`        <li><strong>${esc(component.name)}</strong> — <a href="${esc(docLink(ref, docBase))}">${esc(ref.path)}${cite ? ` ${esc(cite)}` : ''}</a>${quote}</li>`);
+      out.push(`        <li><strong>${esc(component.name)}</strong>: <a href="${esc(docLink(ref, docBase))}">${esc(ref.path)}${cite ? ` ${esc(cite)}` : ''}</a>${quote}</li>`);
     }
     out.push('      </ul>');
   }
@@ -154,7 +154,7 @@ export function briefHtml(question, analysis, idx, { docBase = '' } = {}) {
 //
 // On a diagram-only page that converges. Put prose below the diagram and it
 // cannot: the page now always overflows, so the reader shrinks, re-measures,
-// still overflows, restores, and oscillates — visibly flashing between two zoom
+// still overflows, restores, and oscillates: visibly flashing between two zoom
 // factors, with the main thread pegged. Hiding the section until after load was
 // not enough, because the reader keeps measuring for the life of the page.
 //
@@ -189,7 +189,7 @@ const STYLE = `<style ${MARKER}>
     padding: 32px 24px 56px;
     font: 400 15px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  /* Two thirds prose, one third reference — the same split the diagram above
+  /* Two thirds prose, one third reference: the same split the diagram above
      uses, so the narrative reads under the picture it describes rather than
      down the middle of it. */
   section[${MARKER}] .archlens-brief-inner {

@@ -1,9 +1,9 @@
 // The repair loop: let the renderer's complaints drive the edits.
 //
 // This is the piece that pays for the whole plugin. archify's diagnostics are
-// unusually good — a label collision arrives with the exact `labelAt` that would
+// unusually good: a label collision arrives with the exact `labelAt` that would
 // resolve it, a readability failure arrives with the projected font size and the
-// floor it missed — and a person reading those and editing JSON by hand is doing
+// floor it missed: and a person reading those and editing JSON by hand is doing
 // arithmetic a loop should do. Every fix below is mechanical and reversible.
 //
 // The stopping rule is archify's own: keep going while the objective error count
@@ -393,7 +393,7 @@ function fixSublabelWidth(spec, message, touched) {
 /**
  * Pull the columns together without touching node sizes.
  *
- * Only the gaps may shrink — a narrower node would make the text worse, which is
+ * Only the gaps may shrink: a narrower node would make the text worse, which is
  * the thing this is trying to fix. Returns the ratio actually achieved, or null
  * when the columns are already as tight as they usefully get.
  */

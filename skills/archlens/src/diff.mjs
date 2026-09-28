@@ -105,7 +105,7 @@ export function renderDiff(result, base, head) {
   const name = (id) => nameIn(head, id) ?? nameIn(base, id) ?? id;
 
   if (result.revision.base || result.revision.head) {
-    w(`revision ${(result.revision.base ?? '—').slice(0, 7)} -> ${(result.revision.head ?? '—').slice(0, 7)}`);
+    w(`revision ${(result.revision.base ?? 'none').slice(0, 7)} -> ${(result.revision.head ?? 'none').slice(0, 7)}`);
     w();
   }
   if (result.same) {
