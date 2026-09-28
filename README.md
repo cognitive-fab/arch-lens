@@ -336,6 +336,7 @@ repository revision to verify them against.
   field, with the reasoning in its descriptions.
 - **[SKILL.md](skills/archlens/SKILL.md)** — what Claude reads.
 - **[CHANGELOG.md](CHANGELOG.md)** — what changed, by version.
+- **[PRIVACY.md](PRIVACY.md)** — what it reads and writes, and the one request that leaves your machine.
 
 ## Layout of this repository
 
